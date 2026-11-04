@@ -182,7 +182,7 @@ struct ContentView: View {
             return
         }
 
-        withAnimation(.easeInOut(duration: 0.18)) {
+        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
             runners.swapAt(currentIndex, newIndex)
         }
     }
@@ -254,39 +254,27 @@ private extension Color {
 }
 
 private struct CardMoveHandle: View {
-    let onMoveUp: () -> Void
-    let onMoveDown: () -> Void
-
-    @State private var lastDragStep = 0
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 3) {
             ForEach(0..<3) { _ in
                 Circle()
                     .fill(Color.gray.opacity(0.95))
-                    .frame(width: 5, height: 5)
+                    .frame(width: 3.5, height: 3.5)
             }
         }
-        .frame(width: 24, height: 50)
+        .frame(width: 14, height: 50)
         .contentShape(Rectangle())
         .gesture(
-            DragGesture(minimumDistance: 8)
+            DragGesture(minimumDistance: 4)
                 .onChanged { value in
-                    let step = Int(value.translation.height / 44)
-                    guard step != lastDragStep else {
-                        return
-                    }
-
-                    if step < lastDragStep {
-                        onMoveUp()
-                    } else {
-                        onMoveDown()
-                    }
-
-                    lastDragStep = step
+                    onDragChanged(value.translation.height)
                 }
-                .onEnded { _ in
-                    lastDragStep = 0
+                .onEnded { value in
+                    _ = value
+                    onDragEnded()
                 }
         )
     }
@@ -301,17 +289,18 @@ private struct RunnerCard: View {
     let onMoveDown: () -> Void
     let onOpenNotes: () -> Void
     let onDelete: () -> Void
+    @State private var dragTranslation: CGFloat = 0
+    @State private var lastDragStep = 0
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
             CardMoveHandle(
-                onMoveUp: {
+                onDragChanged: { translation in
                     focusedRunnerID.wrappedValue = nil
-                    onMoveUp()
+                    updateDrag(translation)
                 },
-                onMoveDown: {
-                    focusedRunnerID.wrappedValue = nil
-                    onMoveDown()
+                onDragEnded: {
+                    endDrag()
                 }
             )
                 .accessibilityLabel("Card handle")
@@ -320,9 +309,7 @@ private struct RunnerCard: View {
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
                 .textInputAutocapitalization(.words)
-                .submitLabel(.done)
                 .focused(focusedRunnerID, equals: runner.id)
-                .onSubmit(onCommitName)
                 .lineLimit(1...4)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(minWidth: 34, maxWidth: .infinity, minHeight: 50, alignment: .center)
@@ -397,6 +384,8 @@ private struct RunnerCard: View {
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
+        .offset(y: dragTranslation)
+        .zIndex(dragTranslation == 0 ? 0 : 1)
         .onTapGesture {
             guard focusedRunnerID.wrappedValue != runner.id else {
                 return
@@ -405,6 +394,31 @@ private struct RunnerCard: View {
             onOpenNotes()
         }
         .animation(.easeInOut(duration: 0.18), value: runner.isRunning)
+    }
+
+    private func updateDrag(_ translation: CGFloat) {
+        let step = Int(translation / 58)
+
+        if step > lastDragStep {
+            for _ in lastDragStep..<step {
+                onMoveDown()
+            }
+        } else if step < lastDragStep {
+            for _ in step..<lastDragStep {
+                onMoveUp()
+            }
+        }
+
+        lastDragStep = step
+        dragTranslation = max(-62, min(62, translation - CGFloat(step) * 58))
+    }
+
+    private func endDrag() {
+        lastDragStep = 0
+
+        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.84)) {
+            dragTranslation = 0
+        }
     }
 
     private var formattedElapsed: String {
@@ -420,15 +434,7 @@ private struct RunnerCard: View {
         Binding(
             get: { runner.name },
             set: { newValue in
-                guard newValue.contains("\n") else {
-                    runner.name = newValue
-                    return
-                }
-
                 runner.name = newValue
-                    .replacingOccurrences(of: "\n", with: " ")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                onCommitName()
             }
         )
     }
