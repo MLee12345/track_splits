@@ -493,20 +493,16 @@ private struct FocusUnderline: View {
 private struct WorkoutDetailView: View {
     @Binding var runner: RunnerTimer
     @Environment(\.dismiss) private var dismiss
-    @FocusState private var isNameFocused: Bool
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Runner") {
-                    TextField("Name", text: $runner.name, axis: .vertical)
+                    TextEditor(text: $runner.name)
+                        .font(.body)
                         .textInputAutocapitalization(.words)
-                        .submitLabel(.return)
-                        .lineLimit(1...4)
-                        .focused($isNameFocused)
-                        .overlay(alignment: .bottomLeading) {
-                            FocusUnderline(isFocused: isNameFocused)
-                        }
+                        .frame(minHeight: 92)
+                        .scrollContentBackground(.hidden)
                     Text("Elapsed \(formattedElapsed)")
                         .font(.system(.headline, design: .monospaced))
                         .monospacedDigit()
@@ -519,9 +515,6 @@ private struct WorkoutDetailView: View {
             }
             .navigationTitle("Notes")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                isNameFocused = false
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
