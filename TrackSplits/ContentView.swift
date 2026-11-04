@@ -184,25 +184,6 @@ struct ContentView: View {
         runners.removeAll { $0.id == id }
     }
 
-    private func moveRunner(id: UUID, to newIndex: Int) {
-        guard let currentIndex = runners.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-
-        guard runners.indices.contains(newIndex) else {
-            return
-        }
-
-        guard currentIndex != newIndex else {
-            return
-        }
-
-        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
-            let runner = runners.remove(at: currentIndex)
-            runners.insert(runner, at: newIndex)
-        }
-    }
-
     private func updateRunnerDrag(id: UUID, translation: CGFloat) {
         focusedRunnerID = nil
 
@@ -214,7 +195,7 @@ struct ContentView: View {
         }
 
         guard let startIndex = dragStartIndex,
-              let currentIndex = dragCurrentIndex else {
+              runners.indices.contains(startIndex) else {
             return
         }
 
@@ -223,33 +204,56 @@ struct ContentView: View {
         let proposedIndex = startIndex + Int((translation / runnerRowStride).rounded())
         let targetIndex = min(max(proposedIndex, 0), runners.count - 1)
 
-        guard targetIndex != currentIndex else {
-            return
+        if targetIndex != dragCurrentIndex {
+            withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
+                dragCurrentIndex = targetIndex
+            }
         }
-
-        moveRunner(id: id, to: targetIndex)
-        dragCurrentIndex = targetIndex
     }
 
     private func endRunnerDrag() {
-        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.84)) {
-            dragTranslation = 0
+        if let draggedRunnerID,
+           let startIndex = dragStartIndex,
+           let currentIndex = dragCurrentIndex,
+           startIndex != currentIndex,
+           let liveIndex = runners.firstIndex(where: { $0.id == draggedRunnerID }) {
+            var updatedRunners = runners
+            let runner = updatedRunners.remove(at: liveIndex)
+            let insertionIndex = min(max(currentIndex, 0), updatedRunners.count)
+            updatedRunners.insert(runner, at: insertionIndex)
+            runners = updatedRunners
         }
 
+        dragTranslation = 0
         draggedRunnerID = nil
         dragStartIndex = nil
         dragCurrentIndex = nil
     }
 
     private func dragOffset(for id: UUID) -> CGFloat {
-        guard draggedRunnerID == id,
+        guard let draggedRunnerID,
               let startIndex = dragStartIndex,
               let currentIndex = dragCurrentIndex else {
             return 0
         }
 
-        let settledOffset = CGFloat(currentIndex - startIndex) * runnerRowStride
-        return dragTranslation - settledOffset
+        if draggedRunnerID == id {
+            return dragTranslation
+        }
+
+        guard let index = runners.firstIndex(where: { $0.id == id }) else {
+            return 0
+        }
+
+        if currentIndex > startIndex, index > startIndex, index <= currentIndex {
+            return -runnerRowStride
+        }
+
+        if currentIndex < startIndex, index >= currentIndex, index < startIndex {
+            return runnerRowStride
+        }
+
+        return 0
     }
 
     private func nextDefaultRunnerName() -> String {
@@ -333,7 +337,7 @@ private struct CardMoveHandle: View {
         .frame(width: 14, height: 50)
         .contentShape(Rectangle())
         .gesture(
-            DragGesture(minimumDistance: 4)
+            DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     onDragChanged(value.translation.height)
                 }
@@ -374,14 +378,21 @@ private struct RunnerCard: View {
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
                 .textInputAutocapitalization(.words)
+                .submitLabel(.return)
                 .focused(focusedRunnerID, equals: runner.id)
                 .lineLimit(1...4)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(minWidth: 34, maxWidth: .infinity, minHeight: 50, alignment: .center)
                 .overlay(alignment: .bottomLeading) {
-                FocusUnderline(isFocused: focusedRunnerID.wrappedValue == runner.id)
-            }
-            .layoutPriority(0)
+                    FocusUnderline(isFocused: focusedRunnerID.wrappedValue == runner.id)
+                }
+                .highPriorityGesture(
+                    TapGesture()
+                        .onEnded {
+                            focusedRunnerID.wrappedValue = runner.id
+                        }
+                )
+                .layoutPriority(0)
 
             Text(formattedElapsed)
                 .font(.system(size: 20, weight: .semibold, design: .monospaced))
@@ -449,7 +460,7 @@ private struct RunnerCard: View {
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        .offset(y: dragOffset)
+        .offset(x: isDragging ? 4 : 0, y: dragOffset)
         .zIndex(isDragging ? 1 : 0)
         .scaleEffect(isDragging ? 1.015 : 1)
         .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
@@ -488,7 +499,7 @@ private struct FocusUnderline: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.4, paused: !isFocused)) { timeline in
             Rectangle()
-                .fill(Color.white.opacity(underlineOpacity(at: timeline.date)))
+                .fill(Color.softGreen.opacity(underlineOpacity(at: timeline.date)))
                 .frame(height: 2)
                 .opacity(isFocused ? 1 : 0)
                 .animation(.easeInOut(duration: 0.15), value: isFocused)
