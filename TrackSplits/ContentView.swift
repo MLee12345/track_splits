@@ -46,6 +46,7 @@ struct RunnerTimer: Identifiable, Equatable {
 struct ContentView: View {
     @State private var runners: [RunnerTimer] = (1...4).map { RunnerTimer(name: "Runner \($0)") }
     @State private var nextRunnerNumber = 5
+    @FocusState private var focusedRunnerID: UUID?
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
@@ -56,11 +57,16 @@ struct ContentView: View {
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             ForEach($runners) { $runner in
-                            RunnerCard(
-                                runner: $runner,
-                                now: timeline.date,
-                                onDelete: { removeRunner(id: runner.id) }
-                            )
+                                RunnerCard(
+                                    runner: $runner,
+                                    now: timeline.date,
+                                    focusedRunnerID: $focusedRunnerID,
+                                    onCommitName: commitRunnerName,
+                                    onDelete: {
+                                        commitRunnerName()
+                                        removeRunner(id: runner.id)
+                                    }
+                                )
                             }
                         }
                         .padding(.horizontal, 10)
@@ -70,7 +76,10 @@ struct ContentView: View {
                     .scrollDismissesKeyboard(.interactively)
                 }
 
-                Button(action: addRunner) {
+                Button(action: {
+                    commitRunnerName()
+                    addRunner()
+                }) {
                     Image(systemName: "plus")
                         .font(.system(size: 26, weight: .bold))
                         .frame(width: 62, height: 62)
@@ -106,6 +115,19 @@ struct ContentView: View {
         .padding(.top, 14)
         .padding(.bottom, 10)
         .background(Color.black)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            commitRunnerName()
+        }
+    }
+
+    private func commitRunnerName() {
+        for index in runners.indices {
+            let trimmedName = runners[index].name.trimmingCharacters(in: .whitespacesAndNewlines)
+            runners[index].name = trimmedName.isEmpty ? "Runner \(index + 1)" : trimmedName
+        }
+
+        focusedRunnerID = nil
     }
 
     private func addRunner() {
@@ -150,34 +172,37 @@ private struct StopwatchLogo: View {
 private struct RunnerCard: View {
     @Binding var runner: RunnerTimer
     let now: Date
+    var focusedRunnerID: FocusState<UUID?>.Binding
+    let onCommitName: () -> Void
     let onDelete: () -> Void
 
-    @FocusState private var nameIsFocused: Bool
-
     var body: some View {
-        HStack(alignment: .center, spacing: 6) {
-            TextField("Runner", text: $runner.name, axis: .vertical)
+        HStack(alignment: .center, spacing: 4) {
+            TextField("Runner", text: nameBinding, axis: .vertical)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
-                .focused($nameIsFocused)
-                .onSubmit { nameIsFocused = false }
+                .focused(focusedRunnerID, equals: runner.id)
+                .onSubmit(onCommitName)
                 .lineLimit(1...4)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(minWidth: 52, maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: 38, maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
 
             Text(formattedElapsed)
-                .font(.system(size: 23, weight: .semibold, design: .monospaced))
+                .font(.system(size: 21, weight: .semibold, design: .monospaced))
                 .monospacedDigit()
                 .foregroundStyle(Color.white)
-                .frame(width: 91, alignment: .trailing)
+                .frame(width: 103, alignment: .leading)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Elapsed time \(formattedElapsed)")
 
-            Button(action: { runner.toggle(at: Date()) }) {
+            Button(action: {
+                focusedRunnerID.wrappedValue = nil
+                runner.toggle(at: Date())
+            }) {
                 Text(runner.isRunning ? "Stop" : "Start")
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 54, height: 50)
@@ -190,7 +215,10 @@ private struct RunnerCard: View {
             .buttonStyle(.plain)
             .accessibilityLabel(runner.isRunning ? "Stop \(runner.name)" : "Start \(runner.name)")
 
-            Button(action: { runner.reset(at: Date()) }) {
+            Button(action: {
+                focusedRunnerID.wrappedValue = nil
+                runner.reset(at: Date())
+            }) {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.system(size: 17, weight: .bold))
                     .frame(width: 34, height: 50)
@@ -203,7 +231,10 @@ private struct RunnerCard: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Reset \(runner.name)")
 
-            Button(role: .destructive, action: onDelete) {
+            Button(role: .destructive, action: {
+                focusedRunnerID.wrappedValue = nil
+                onDelete()
+            }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 32, height: 50)
@@ -233,6 +264,23 @@ private struct RunnerCard: View {
         let hundredths = Int((elapsed * 100).rounded(.down)) % 100
 
         return String(format: "%02d:%02d.%02d", minutes, seconds, hundredths)
+    }
+
+    private var nameBinding: Binding<String> {
+        Binding(
+            get: { runner.name },
+            set: { newValue in
+                guard newValue.contains("\n") else {
+                    runner.name = newValue
+                    return
+                }
+
+                runner.name = newValue
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                onCommitName()
+            }
+        )
     }
 }
 
