@@ -81,9 +81,7 @@ struct ContentView: View {
                                     now: timeline.date,
                                     focusedRunnerID: $focusedRunnerID,
                                     onCommitName: commitRunnerName,
-                                    onMoveUp: { moveRunner(id: runner.id, offset: -1) },
-                                    onMoveDown: { moveRunner(id: runner.id, offset: 1) },
-                                    onOpenWorkout: {
+                                    onOpenNotes: {
                                         commitRunnerName()
                                         selectedRunnerID = runner.id
                                     },
@@ -172,19 +170,6 @@ struct ContentView: View {
         runners.removeAll { $0.id == id }
     }
 
-    private func moveRunner(id: UUID, offset: Int) {
-        guard let currentIndex = runners.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-
-        let newIndex = currentIndex + offset
-        guard runners.indices.contains(newIndex) else {
-            return
-        }
-
-        runners.swapAt(currentIndex, newIndex)
-    }
-
     private func nextDefaultRunnerName() -> String {
         var runnerNumber = 1
 
@@ -221,51 +206,27 @@ private struct StopwatchLogo: View {
 
     var body: some View {
         ZStack {
-            ForEach(0..<3) { index in
-                let offset = CGFloat(index - 1) * size * 0.18
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.softGreen, Color.softCyan],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.softGreen, Color.softCyan],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white.opacity(0.24), lineWidth: 1)
-                    )
-                    .overlay(
-                        ClockHands()
-                            .stroke(Color.black.opacity(0.72), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                            .padding(size * 0.22)
-                    )
-                    .frame(width: size * 0.62, height: size * 0.62)
-                    .offset(x: offset, y: CGFloat(index % 2) * size * 0.08)
-                    .shadow(color: Color.softGreen.opacity(0.20), radius: 7, x: 0, y: 4)
-            }
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                )
 
-            RoundedRectangle(cornerRadius: 3)
-                .fill(Color.white.opacity(0.78))
-                .frame(width: size * 0.28, height: size * 0.08)
-                .offset(y: -size * 0.34)
+            Image(systemName: "stopwatch.fill")
+                .font(.system(size: size * 0.53, weight: .black))
+                .foregroundStyle(.black.opacity(0.82))
+                .shadow(color: .white.opacity(0.28), radius: 1, x: 0, y: 1)
         }
         .frame(width: size, height: size)
+        .shadow(color: Color.softGreen.opacity(0.26), radius: 10, x: 0, y: 5)
         .accessibilityHidden(true)
-    }
-}
-
-private struct ClockHands: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-
-        path.move(to: center)
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.move(to: center)
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY + rect.height * 0.22))
-
-        return path
     }
 }
 
@@ -280,33 +241,16 @@ private struct RunnerCard: View {
     let now: Date
     var focusedRunnerID: FocusState<UUID?>.Binding
     let onCommitName: () -> Void
-    let onMoveUp: () -> Void
-    let onMoveDown: () -> Void
-    let onOpenWorkout: () -> Void
+    let onOpenNotes: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
-            Menu {
-                Button("Workout Settings", systemImage: "figure.run") {
-                    focusedRunnerID.wrappedValue = nil
-                    onOpenWorkout()
-                }
-                Button("Move Up", systemImage: "arrow.up") {
-                    focusedRunnerID.wrappedValue = nil
-                    onMoveUp()
-                }
-                Button("Move Down", systemImage: "arrow.down") {
-                    focusedRunnerID.wrappedValue = nil
-                    onMoveDown()
-                }
-            } label: {
-                Image(systemName: "ellipsis.vertical")
-                    .font(.system(size: 18, weight: .bold))
-                    .frame(width: 24, height: 50)
-                    .foregroundStyle(.white.opacity(0.72))
-            }
-            .accessibilityLabel("Arrange \(runner.name)")
+            Image(systemName: "ellipsis.vertical")
+                .font(.system(size: 19, weight: .heavy))
+                .frame(width: 24, height: 50)
+                .foregroundStyle(Color.gray.opacity(0.95))
+                .accessibilityLabel("Card handle")
 
             VStack(alignment: .leading, spacing: 4) {
                 TextField("Runner", text: nameBinding, axis: .vertical)
@@ -395,7 +339,7 @@ private struct RunnerCard: View {
                 return
             }
 
-            onOpenWorkout()
+            onOpenNotes()
         }
         .animation(.easeInOut(duration: 0.18), value: runner.isRunning)
     }
@@ -453,9 +397,6 @@ private struct WorkoutDetailView: View {
     @Binding var runner: RunnerTimer
     @Environment(\.dismiss) private var dismiss
 
-    private let workoutTypes = ["Intervals", "Tempo", "Easy", "Long Run", "Race"]
-    private let efforts = ["Easy", "Marathon", "Threshold", "Interval", "Repetition"]
-
     var body: some View {
         NavigationStack {
             Form {
@@ -466,38 +407,12 @@ private struct WorkoutDetailView: View {
                         .monospacedDigit()
                 }
 
-                Section("Workout") {
-                    Picker("Type", selection: $runner.workout.workoutType) {
-                        ForEach(workoutTypes, id: \.self) { workoutType in
-                            Text(workoutType)
-                        }
-                    }
-
-                    TextField("Target", text: $runner.workout.target)
-                    Stepper("Reps: \(runner.workout.repetitions)", value: $runner.workout.repetitions, in: 1...40)
-                    TextField("Work", text: $runner.workout.workDistance)
-                    TextField("Recovery", text: $runner.workout.recovery)
-                }
-
-                Section("Pace Guidance") {
-                    Picker("Effort", selection: $runner.workout.effort) {
-                        ForEach(efforts, id: \.self) { effort in
-                            Text(effort)
-                        }
-                    }
-
-                    TextField("Target Pace", text: $runner.workout.targetPace)
-                    Text("Coach-facing setup inspired by pace calculator workflows: choose the workout type, set reps and recovery, then keep target pace and effort visible with the runner.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
                 Section("Notes") {
-                    TextField("Workout notes", text: $runner.workout.notes, axis: .vertical)
-                        .lineLimit(3...6)
+                    TextField("Add coach notes", text: $runner.workout.notes, axis: .vertical)
+                        .lineLimit(6...12)
                 }
             }
-            .navigationTitle(runner.name)
+            .navigationTitle("Notes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
