@@ -48,33 +48,25 @@ struct ContentView: View {
     @State private var nextRunnerNumber = 5
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !hasRunningTimers)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 0) {
                     header
 
-                    List {
-                        ForEach($runners) { $runner in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach($runners) { $runner in
                             RunnerCard(
                                 runner: $runner,
                                 now: timeline.date,
                                 onDelete: { removeRunner(id: runner.id) }
                             )
-                            .listRowInsets(EdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    removeRunner(id: runner.id)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
                             }
                         }
-                        .onDelete(perform: deleteRunners)
+                        .padding(.horizontal, 10)
+                        .padding(.top, 8)
+                        .padding(.bottom, 104)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                     .scrollDismissesKeyboard(.interactively)
                 }
 
@@ -114,17 +106,9 @@ struct ContentView: View {
         .background(Color.black)
     }
 
-    private var hasRunningTimers: Bool {
-        runners.contains { $0.isRunning }
-    }
-
     private func addRunner() {
         runners.append(RunnerTimer(name: "Runner \(nextRunnerNumber)"))
         nextRunnerNumber += 1
-    }
-
-    private func deleteRunners(at offsets: IndexSet) {
-        runners.remove(atOffsets: offsets)
     }
 
     private func removeRunner(id: UUID) {
