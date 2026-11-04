@@ -81,6 +81,8 @@ struct ContentView: View {
                                     now: timeline.date,
                                     focusedRunnerID: $focusedRunnerID,
                                     onCommitName: commitRunnerName,
+                                    onMoveUp: { moveRunner(id: runner.id, offset: -1) },
+                                    onMoveDown: { moveRunner(id: runner.id, offset: 1) },
                                     onOpenNotes: {
                                         commitRunnerName()
                                         selectedRunnerID = runner.id
@@ -170,6 +172,21 @@ struct ContentView: View {
         runners.removeAll { $0.id == id }
     }
 
+    private func moveRunner(id: UUID, offset: Int) {
+        guard let currentIndex = runners.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let newIndex = currentIndex + offset
+        guard runners.indices.contains(newIndex) else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            runners.swapAt(currentIndex, newIndex)
+        }
+    }
+
     private func nextDefaultRunnerName() -> String {
         var runnerNumber = 1
 
@@ -237,6 +254,11 @@ private extension Color {
 }
 
 private struct CardMoveHandle: View {
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+
+    @State private var lastDragStep = 0
+
     var body: some View {
         VStack(spacing: 5) {
             ForEach(0..<3) { _ in
@@ -246,9 +268,26 @@ private struct CardMoveHandle: View {
             }
         }
         .frame(width: 24, height: 50)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.white.opacity(0.08))
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 8)
+                .onChanged { value in
+                    let step = Int(value.translation.height / 44)
+                    guard step != lastDragStep else {
+                        return
+                    }
+
+                    if step < lastDragStep {
+                        onMoveUp()
+                    } else {
+                        onMoveDown()
+                    }
+
+                    lastDragStep = step
+                }
+                .onEnded { _ in
+                    lastDragStep = 0
+                }
         )
     }
 }
@@ -258,12 +297,23 @@ private struct RunnerCard: View {
     let now: Date
     var focusedRunnerID: FocusState<UUID?>.Binding
     let onCommitName: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
     let onOpenNotes: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
-            CardMoveHandle()
+            CardMoveHandle(
+                onMoveUp: {
+                    focusedRunnerID.wrappedValue = nil
+                    onMoveUp()
+                },
+                onMoveDown: {
+                    focusedRunnerID.wrappedValue = nil
+                    onMoveDown()
+                }
+            )
                 .accessibilityLabel("Card handle")
 
             TextField("Runner", text: nameBinding, axis: .vertical)
