@@ -236,6 +236,23 @@ private extension Color {
     static let softCyan = Color(red: 0.35, green: 0.77, blue: 0.86)
 }
 
+private struct CardMoveHandle: View {
+    var body: some View {
+        VStack(spacing: 5) {
+            ForEach(0..<3) { _ in
+                Circle()
+                    .fill(Color.gray.opacity(0.95))
+                    .frame(width: 5, height: 5)
+            }
+        }
+        .frame(width: 24, height: 50)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.white.opacity(0.08))
+        )
+    }
+}
+
 private struct RunnerCard: View {
     @Binding var runner: RunnerTimer
     let now: Date
@@ -246,24 +263,20 @@ private struct RunnerCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
-            Image(systemName: "ellipsis.vertical")
-                .font(.system(size: 19, weight: .heavy))
-                .frame(width: 24, height: 50)
-                .foregroundStyle(Color.gray.opacity(0.95))
+            CardMoveHandle()
                 .accessibilityLabel("Card handle")
 
-            VStack(alignment: .leading, spacing: 4) {
-                TextField("Runner", text: nameBinding, axis: .vertical)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .textInputAutocapitalization(.words)
-                    .submitLabel(.done)
-                    .focused(focusedRunnerID, equals: runner.id)
-                    .onSubmit(onCommitName)
-                    .lineLimit(1...4)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(minWidth: 34, maxWidth: .infinity, alignment: .leading)
-
+            TextField("Runner", text: nameBinding, axis: .vertical)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white)
+                .textInputAutocapitalization(.words)
+                .submitLabel(.done)
+                .focused(focusedRunnerID, equals: runner.id)
+                .onSubmit(onCommitName)
+                .lineLimit(1...4)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(minWidth: 34, maxWidth: .infinity, minHeight: 50, alignment: .center)
+                .overlay(alignment: .bottomLeading) {
                 FocusUnderline(isFocused: focusedRunnerID.wrappedValue == runner.id)
             }
             .layoutPriority(0)
@@ -408,7 +421,7 @@ private struct WorkoutDetailView: View {
                 }
 
                 Section("Notes") {
-                    TextField("Add coach notes", text: $runner.workout.notes, axis: .vertical)
+                    TextField("Workout details, timing cues, splits, etc.", text: $runner.workout.notes, axis: .vertical)
                         .lineLimit(6...12)
                 }
             }
