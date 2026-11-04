@@ -87,7 +87,9 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 12) {
+            StopwatchLogo(size: 48)
+
             VStack(alignment: .leading, spacing: 3) {
                 Text("TrackSplits")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -116,6 +118,35 @@ struct ContentView: View {
     }
 }
 
+private struct StopwatchLogo: View {
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.green, Color.cyan],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                )
+
+            Image(systemName: "stopwatch.fill")
+                .font(.system(size: size * 0.53, weight: .black))
+                .foregroundStyle(.black.opacity(0.82))
+                .shadow(color: .white.opacity(0.28), radius: 1, x: 0, y: 1)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: Color.green.opacity(0.26), radius: 10, x: 0, y: 5)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct RunnerCard: View {
     @Binding var runner: RunnerTimer
     let now: Date
@@ -124,24 +155,26 @@ private struct RunnerCard: View {
     @FocusState private var nameIsFocused: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
-            TextField("Runner", text: $runner.name)
+        HStack(alignment: .center, spacing: 6) {
+            TextField("Runner", text: $runner.name, axis: .vertical)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
                 .focused($nameIsFocused)
                 .onSubmit { nameIsFocused = false }
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .lineLimit(1...4)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(minWidth: 52, maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
             Text(formattedElapsed)
                 .font(.system(size: 23, weight: .semibold, design: .monospaced))
                 .monospacedDigit()
-                .foregroundStyle(runner.isRunning ? Color.yellow : Color.white)
-                .opacity(readoutOpacity)
+                .foregroundStyle(Color.white)
                 .frame(width: 91, alignment: .trailing)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Elapsed time \(formattedElapsed)")
 
             Button(action: { runner.toggle(at: Date()) }) {
@@ -186,7 +219,7 @@ private struct RunnerCard: View {
                 .fill(Color(white: 0.11))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(runner.isRunning ? Color.yellow.opacity(0.8) : Color.white.opacity(0.08), lineWidth: runner.isRunning ? 2 : 1)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
@@ -200,15 +233,6 @@ private struct RunnerCard: View {
         let hundredths = Int((elapsed * 100).rounded(.down)) % 100
 
         return String(format: "%02d:%02d.%02d", minutes, seconds, hundredths)
-    }
-
-    private var readoutOpacity: Double {
-        guard runner.isRunning else {
-            return 1
-        }
-
-        let pulse = sin(now.timeIntervalSinceReferenceDate * 5)
-        return 0.86 + ((pulse + 1) / 2) * 0.14
     }
 }
 
