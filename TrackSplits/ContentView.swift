@@ -85,8 +85,6 @@ struct ContentView: View {
                                 RunnerCard(
                                     runner: $runner,
                                     now: timeline.date,
-                                    focusedRunnerID: $focusedRunnerID,
-                                    onCommitName: commitRunnerName,
                                     dragOffset: dragOffset(for: runner.id),
                                     isDragging: draggedRunnerID == runner.id,
                                     onDragChanged: { translation in
@@ -133,6 +131,14 @@ struct ContentView: View {
                 .padding(.bottom, 24)
             }
             .background(Color.black.ignoresSafeArea())
+            .onAppear {
+                selectedRunnerID = nil
+                focusedRunnerID = nil
+                draggedRunnerID = nil
+                dragStartIndex = nil
+                dragCurrentIndex = nil
+                dragTranslation = 0
+            }
             .sheet(isPresented: workoutSheetIsPresented) {
                 if let selectedRunnerBinding {
                     WorkoutDetailView(runner: selectedRunnerBinding)
@@ -352,8 +358,6 @@ private struct CardMoveHandle: View {
 private struct RunnerCard: View {
     @Binding var runner: RunnerTimer
     let now: Date
-    var focusedRunnerID: FocusState<UUID?>.Binding
-    let onCommitName: () -> Void
     let dragOffset: CGFloat
     let isDragging: Bool
     let onDragChanged: (CGFloat) -> Void
@@ -365,7 +369,6 @@ private struct RunnerCard: View {
         HStack(alignment: .center, spacing: 3) {
             CardMoveHandle(
                 onDragChanged: { translation in
-                    focusedRunnerID.wrappedValue = nil
                     onDragChanged(translation)
                 },
                 onDragEnded: {
@@ -374,24 +377,12 @@ private struct RunnerCard: View {
             )
                 .accessibilityLabel("Card handle")
 
-            TextField("Runner", text: nameBinding, axis: .vertical)
+            Text(runner.name)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
-                .textInputAutocapitalization(.words)
-                .submitLabel(.return)
-                .focused(focusedRunnerID, equals: runner.id)
-                .lineLimit(1...4)
+                .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(minWidth: 34, maxWidth: .infinity, minHeight: 50, alignment: .center)
-                .overlay(alignment: .bottomLeading) {
-                    FocusUnderline(isFocused: focusedRunnerID.wrappedValue == runner.id)
-                }
-                .highPriorityGesture(
-                    TapGesture()
-                        .onEnded {
-                            focusedRunnerID.wrappedValue = runner.id
-                        }
-                )
                 .layoutPriority(0)
 
             Text(formattedElapsed)
@@ -406,7 +397,6 @@ private struct RunnerCard: View {
                 .accessibilityLabel("Elapsed time \(formattedElapsed)")
 
             Button(action: {
-                focusedRunnerID.wrappedValue = nil
                 runner.toggle(at: Date())
             }) {
                 Text(runner.isRunning ? "Stop" : "Start")
@@ -422,7 +412,6 @@ private struct RunnerCard: View {
             .accessibilityLabel(runner.isRunning ? "Stop \(runner.name)" : "Start \(runner.name)")
 
             Button(action: {
-                focusedRunnerID.wrappedValue = nil
                 runner.reset(at: Date())
             }) {
                 Image(systemName: "arrow.counterclockwise")
@@ -438,7 +427,6 @@ private struct RunnerCard: View {
             .accessibilityLabel("Reset \(runner.name)")
 
             Button(role: .destructive, action: {
-                focusedRunnerID.wrappedValue = nil
                 onDelete()
             }) {
                 Image(systemName: "xmark")
@@ -465,10 +453,6 @@ private struct RunnerCard: View {
         .scaleEffect(isDragging ? 1.015 : 1)
         .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
         .onTapGesture {
-            guard focusedRunnerID.wrappedValue != runner.id else {
-                return
-            }
-
             onOpenNotes()
         }
         .animation(.easeInOut(duration: 0.18), value: runner.isRunning)
@@ -481,15 +465,6 @@ private struct RunnerCard: View {
         let hundredths = Int((elapsed * 100).rounded(.down)) % 100
 
         return String(format: "%02d:%02d.%02d", minutes, seconds, hundredths)
-    }
-
-    private var nameBinding: Binding<String> {
-        Binding(
-            get: { runner.name },
-            set: { newValue in
-                runner.name = newValue
-            }
-        )
     }
 }
 
@@ -518,12 +493,20 @@ private struct FocusUnderline: View {
 private struct WorkoutDetailView: View {
     @Binding var runner: RunnerTimer
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isNameFocused: Bool
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Runner") {
-                    TextField("Name", text: $runner.name)
+                    TextField("Name", text: $runner.name, axis: .vertical)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.return)
+                        .lineLimit(1...4)
+                        .focused($isNameFocused)
+                        .overlay(alignment: .bottomLeading) {
+                            FocusUnderline(isFocused: isNameFocused)
+                        }
                     Text("Elapsed \(formattedElapsed)")
                         .font(.system(.headline, design: .monospaced))
                         .monospacedDigit()
@@ -536,6 +519,9 @@ private struct WorkoutDetailView: View {
             }
             .navigationTitle("Notes")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                isNameFocused = false
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
