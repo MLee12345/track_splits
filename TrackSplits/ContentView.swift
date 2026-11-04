@@ -63,8 +63,14 @@ struct WorkoutSettings: Equatable {
 }
 
 struct ContentView: View {
+    private let runnerRowStride: CGFloat = 82
+
     @State private var runners: [RunnerTimer] = (1...4).map { RunnerTimer(name: "Runner \($0)") }
     @State private var selectedRunnerID: UUID?
+    @State private var draggedRunnerID: UUID?
+    @State private var dragStartIndex: Int?
+    @State private var dragCurrentIndex: Int?
+    @State private var dragTranslation: CGFloat = 0
     @FocusState private var focusedRunnerID: UUID?
 
     var body: some View {
@@ -81,8 +87,14 @@ struct ContentView: View {
                                     now: timeline.date,
                                     focusedRunnerID: $focusedRunnerID,
                                     onCommitName: commitRunnerName,
-                                    onMoveUp: { moveRunner(id: runner.id, offset: -1) },
-                                    onMoveDown: { moveRunner(id: runner.id, offset: 1) },
+                                    dragOffset: dragOffset(for: runner.id),
+                                    isDragging: draggedRunnerID == runner.id,
+                                    onDragChanged: { translation in
+                                        updateRunnerDrag(id: runner.id, translation: translation)
+                                    },
+                                    onDragEnded: {
+                                        endRunnerDrag()
+                                    },
                                     onOpenNotes: {
                                         commitRunnerName()
                                         selectedRunnerID = runner.id
@@ -172,19 +184,72 @@ struct ContentView: View {
         runners.removeAll { $0.id == id }
     }
 
-    private func moveRunner(id: UUID, offset: Int) {
+    private func moveRunner(id: UUID, to newIndex: Int) {
         guard let currentIndex = runners.firstIndex(where: { $0.id == id }) else {
             return
         }
 
-        let newIndex = currentIndex + offset
         guard runners.indices.contains(newIndex) else {
             return
         }
 
-        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
-            runners.swapAt(currentIndex, newIndex)
+        guard currentIndex != newIndex else {
+            return
         }
+
+        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
+            let runner = runners.remove(at: currentIndex)
+            runners.insert(runner, at: newIndex)
+        }
+    }
+
+    private func updateRunnerDrag(id: UUID, translation: CGFloat) {
+        focusedRunnerID = nil
+
+        if draggedRunnerID != id {
+            draggedRunnerID = id
+            dragStartIndex = runners.firstIndex { $0.id == id }
+            dragCurrentIndex = dragStartIndex
+            dragTranslation = 0
+        }
+
+        guard let startIndex = dragStartIndex,
+              let currentIndex = dragCurrentIndex else {
+            return
+        }
+
+        dragTranslation = translation
+
+        let proposedIndex = startIndex + Int((translation / runnerRowStride).rounded())
+        let targetIndex = min(max(proposedIndex, 0), runners.count - 1)
+
+        guard targetIndex != currentIndex else {
+            return
+        }
+
+        moveRunner(id: id, to: targetIndex)
+        dragCurrentIndex = targetIndex
+    }
+
+    private func endRunnerDrag() {
+        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.84)) {
+            dragTranslation = 0
+        }
+
+        draggedRunnerID = nil
+        dragStartIndex = nil
+        dragCurrentIndex = nil
+    }
+
+    private func dragOffset(for id: UUID) -> CGFloat {
+        guard draggedRunnerID == id,
+              let startIndex = dragStartIndex,
+              let currentIndex = dragCurrentIndex else {
+            return 0
+        }
+
+        let settledOffset = CGFloat(currentIndex - startIndex) * runnerRowStride
+        return dragTranslation - settledOffset
     }
 
     private func nextDefaultRunnerName() -> String {
@@ -285,22 +350,22 @@ private struct RunnerCard: View {
     let now: Date
     var focusedRunnerID: FocusState<UUID?>.Binding
     let onCommitName: () -> Void
-    let onMoveUp: () -> Void
-    let onMoveDown: () -> Void
+    let dragOffset: CGFloat
+    let isDragging: Bool
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
     let onOpenNotes: () -> Void
     let onDelete: () -> Void
-    @State private var dragTranslation: CGFloat = 0
-    @State private var lastDragStep = 0
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
             CardMoveHandle(
                 onDragChanged: { translation in
                     focusedRunnerID.wrappedValue = nil
-                    updateDrag(translation)
+                    onDragChanged(translation)
                 },
                 onDragEnded: {
-                    endDrag()
+                    onDragEnded()
                 }
             )
                 .accessibilityLabel("Card handle")
@@ -384,8 +449,10 @@ private struct RunnerCard: View {
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        .offset(y: dragTranslation)
-        .zIndex(dragTranslation == 0 ? 0 : 1)
+        .offset(y: dragOffset)
+        .zIndex(isDragging ? 1 : 0)
+        .scaleEffect(isDragging ? 1.015 : 1)
+        .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
         .onTapGesture {
             guard focusedRunnerID.wrappedValue != runner.id else {
                 return
@@ -394,31 +461,6 @@ private struct RunnerCard: View {
             onOpenNotes()
         }
         .animation(.easeInOut(duration: 0.18), value: runner.isRunning)
-    }
-
-    private func updateDrag(_ translation: CGFloat) {
-        let step = Int(translation / 58)
-
-        if step > lastDragStep {
-            for _ in lastDragStep..<step {
-                onMoveDown()
-            }
-        } else if step < lastDragStep {
-            for _ in step..<lastDragStep {
-                onMoveUp()
-            }
-        }
-
-        lastDragStep = step
-        dragTranslation = max(-62, min(62, translation - CGFloat(step) * 58))
-    }
-
-    private func endDrag() {
-        lastDragStep = 0
-
-        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.84)) {
-            dragTranslation = 0
-        }
     }
 
     private var formattedElapsed: String {
