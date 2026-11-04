@@ -237,26 +237,8 @@ struct ContentView: View {
     }
 
     private func dragOffset(for id: UUID) -> CGFloat {
-        guard let draggedRunnerID,
-              let startIndex = dragStartIndex,
-              let currentIndex = dragCurrentIndex else {
-            return 0
-        }
-
         if draggedRunnerID == id {
             return dragTranslation
-        }
-
-        guard let index = runners.firstIndex(where: { $0.id == id }) else {
-            return 0
-        }
-
-        if currentIndex > startIndex, index > startIndex, index <= currentIndex {
-            return -runnerRowStride
-        }
-
-        if currentIndex < startIndex, index >= currentIndex, index < startIndex {
-            return runnerRowStride
         }
 
         return 0
@@ -448,7 +430,7 @@ private struct RunnerCard: View {
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        .offset(x: isDragging ? 4 : 0, y: dragOffset)
+        .offset(y: dragOffset)
         .zIndex(isDragging ? 1 : 0)
         .scaleEffect(isDragging ? 1.015 : 1)
         .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
@@ -501,7 +483,7 @@ private struct WorkoutDetailView: View {
                     TextEditor(text: $runner.name)
                         .font(.body)
                         .textInputAutocapitalization(.words)
-                        .frame(minHeight: 92)
+                        .frame(minHeight: 28)
                         .scrollContentBackground(.hidden)
                     Text("Elapsed \(formattedElapsed)")
                         .font(.system(.headline, design: .monospaced))
