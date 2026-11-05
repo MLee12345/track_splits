@@ -63,6 +63,8 @@ struct WorkoutSettings: Equatable {
 }
 
 struct ContentView: View {
+    private let runnerRowStride: CGFloat = 82
+
     @State private var runners: [RunnerTimer] = (1...4).map { RunnerTimer(name: "Runner \($0)") }
     @State private var selectedRunnerID: UUID?
     @FocusState private var focusedRunnerID: UUID?
@@ -79,6 +81,9 @@ struct ContentView: View {
                                 RunnerCard(
                                     runner: $runner,
                                     now: timeline.date,
+                                    onDragEnded: { translation in
+                                        moveRunner(id: runner.id, translation: translation)
+                                    },
                                     onOpenNotes: {
                                         commitRunnerName()
                                         selectedRunnerID = runner.id
@@ -172,6 +177,25 @@ struct ContentView: View {
         runners.removeAll { $0.id == id }
     }
 
+    private func moveRunner(id: UUID, translation: CGFloat) {
+        guard abs(translation) >= runnerRowStride * 0.35,
+              let currentIndex = runners.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let offset = Int((translation / runnerRowStride).rounded())
+        let newIndex = min(max(currentIndex + offset, 0), runners.count - 1)
+
+        guard newIndex != currentIndex else {
+            return
+        }
+
+        withAnimation(.interactiveSpring(response: 0.26, dampingFraction: 0.88)) {
+            let runner = runners.remove(at: currentIndex)
+            runners.insert(runner, at: newIndex)
+        }
+    }
+
     private func nextDefaultRunnerName() -> String {
         var runnerNumber = 1
 
@@ -255,9 +279,11 @@ private struct CardMoveHandle: View {
 private struct RunnerCard: View {
     @Binding var runner: RunnerTimer
     let now: Date
+    let onDragEnded: (CGFloat) -> Void
     let onOpenNotes: () -> Void
     let onDelete: () -> Void
-    @GestureState private var dragOffset: CGFloat = 0
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDragging = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
@@ -265,8 +291,17 @@ private struct RunnerCard: View {
                 .accessibilityLabel("Card handle")
                 .gesture(
                     DragGesture(minimumDistance: 0)
-                        .updating($dragOffset) { value, state, _ in
-                            state = value.translation.height
+                        .onChanged { value in
+                            isDragging = true
+                            dragOffset = value.translation.height
+                        }
+                        .onEnded { value in
+                            onDragEnded(value.translation.height)
+
+                            withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
+                                dragOffset = 0
+                                isDragging = false
+                            }
                         }
                 )
 
@@ -342,10 +377,9 @@ private struct RunnerCard: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .offset(y: dragOffset)
-        .zIndex(dragOffset == 0 ? 0 : 1)
-        .scaleEffect(dragOffset == 0 ? 1 : 1.015)
-        .shadow(color: .black.opacity(dragOffset == 0 ? 0 : 0.28), radius: 10, x: 0, y: 6)
-        .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.86), value: dragOffset)
+        .zIndex(isDragging ? 1 : 0)
+        .scaleEffect(isDragging ? 1.015 : 1)
+        .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
         .onTapGesture {
             onOpenNotes()
         }
