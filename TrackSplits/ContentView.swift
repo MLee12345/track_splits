@@ -65,8 +65,6 @@ struct WorkoutSettings: Equatable {
 struct ContentView: View {
     @State private var runners: [RunnerTimer] = (1...4).map { RunnerTimer(name: "Runner \($0)") }
     @State private var selectedRunnerID: UUID?
-    @State private var draggedRunnerID: UUID?
-    @State private var dragTranslation: CGFloat = 0
     @FocusState private var focusedRunnerID: UUID?
 
     var body: some View {
@@ -81,14 +79,6 @@ struct ContentView: View {
                                 RunnerCard(
                                     runner: $runner,
                                     now: timeline.date,
-                                    dragOffset: dragOffset(for: runner.id),
-                                    isDragging: draggedRunnerID == runner.id,
-                                    onDragChanged: { translation in
-                                        updateRunnerDrag(id: runner.id, translation: translation)
-                                    },
-                                    onDragEnded: {
-                                        endRunnerDrag()
-                                    },
                                     onOpenNotes: {
                                         commitRunnerName()
                                         selectedRunnerID = runner.id
@@ -130,8 +120,6 @@ struct ContentView: View {
             .onAppear {
                 selectedRunnerID = nil
                 focusedRunnerID = nil
-                draggedRunnerID = nil
-                dragTranslation = 0
             }
             .sheet(isPresented: workoutSheetIsPresented) {
                 if let selectedRunnerBinding {
@@ -182,33 +170,6 @@ struct ContentView: View {
 
     private func removeRunner(id: UUID) {
         runners.removeAll { $0.id == id }
-    }
-
-    private func updateRunnerDrag(id: UUID, translation: CGFloat) {
-        focusedRunnerID = nil
-
-        if draggedRunnerID != id {
-            draggedRunnerID = id
-            dragTranslation = 0
-        }
-
-        dragTranslation = translation
-    }
-
-    private func endRunnerDrag() {
-        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
-            dragTranslation = 0
-        }
-
-        draggedRunnerID = nil
-    }
-
-    private func dragOffset(for id: UUID) -> CGFloat {
-        if draggedRunnerID == id {
-            return dragTranslation
-        }
-
-        return 0
     }
 
     private func nextDefaultRunnerName() -> String {
@@ -278,9 +239,6 @@ private extension Color {
 }
 
 private struct CardMoveHandle: View {
-    let onDragChanged: (CGFloat) -> Void
-    let onDragEnded: () -> Void
-
     var body: some View {
         VStack(spacing: 3) {
             ForEach(0..<3) { _ in
@@ -291,40 +249,26 @@ private struct CardMoveHandle: View {
         }
         .frame(width: 14, height: 50)
         .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    onDragChanged(value.translation.height)
-                }
-                .onEnded { value in
-                    _ = value
-                    onDragEnded()
-                }
-        )
     }
 }
 
 private struct RunnerCard: View {
     @Binding var runner: RunnerTimer
     let now: Date
-    let dragOffset: CGFloat
-    let isDragging: Bool
-    let onDragChanged: (CGFloat) -> Void
-    let onDragEnded: () -> Void
     let onOpenNotes: () -> Void
     let onDelete: () -> Void
+    @GestureState private var dragOffset: CGFloat = 0
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
-            CardMoveHandle(
-                onDragChanged: { translation in
-                    onDragChanged(translation)
-                },
-                onDragEnded: {
-                    onDragEnded()
-                }
-            )
+            CardMoveHandle()
                 .accessibilityLabel("Card handle")
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .updating($dragOffset) { value, state, _ in
+                            state = value.translation.height
+                        }
+                )
 
             Text(runner.name)
                 .font(.headline.weight(.semibold))
@@ -398,9 +342,10 @@ private struct RunnerCard: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .offset(y: dragOffset)
-        .zIndex(isDragging ? 1 : 0)
-        .scaleEffect(isDragging ? 1.015 : 1)
-        .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
+        .zIndex(dragOffset == 0 ? 0 : 1)
+        .scaleEffect(dragOffset == 0 ? 1 : 1.015)
+        .shadow(color: .black.opacity(dragOffset == 0 ? 0 : 0.28), radius: 10, x: 0, y: 6)
+        .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.86), value: dragOffset)
         .onTapGesture {
             onOpenNotes()
         }
@@ -450,6 +395,7 @@ private struct WorkoutDetailView: View {
                     TextEditor(text: $runner.name)
                         .font(.body)
                         .textInputAutocapitalization(.never)
+                        .tint(Color.softGreen)
                         .frame(minHeight: 28)
                         .scrollContentBackground(.hidden)
                     Text("Elapsed \(formattedElapsed)")
@@ -460,6 +406,7 @@ private struct WorkoutDetailView: View {
                 Section("Notes") {
                     TextField("Workout details, timing cues, splits, etc.", text: $runner.workout.notes, axis: .vertical)
                         .textInputAutocapitalization(.never)
+                        .tint(Color.softGreen)
                         .lineLimit(6...12)
                 }
             }
