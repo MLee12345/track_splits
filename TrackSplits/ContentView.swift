@@ -254,7 +254,7 @@ struct ContentView: View {
         }
 
         if draggedRunnerID == id {
-            return dragTranslation
+            return 0
         }
 
         guard let index = runners.firstIndex(where: { $0.id == id }) else {
@@ -361,6 +361,7 @@ private struct RunnerCard: View {
     let onDragEnded: () -> Void
     let onOpenNotes: () -> Void
     let onDelete: () -> Void
+    @GestureState private var fingerOffset: CGFloat = 0
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
@@ -368,6 +369,10 @@ private struct RunnerCard: View {
                 .accessibilityLabel("Card handle")
                 .gesture(
                     DragGesture(minimumDistance: 0)
+                        .updating($fingerOffset) { value, state, transaction in
+                            transaction.animation = nil
+                            state = value.translation.height
+                        }
                         .onChanged { value in
                             onDragChanged(value.translation.height)
                         }
@@ -447,15 +452,11 @@ private struct RunnerCard: View {
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        .offset(y: dragOffset)
-        .zIndex(isDragging ? 1 : 0)
-        .scaleEffect(isDragging ? 1.015 : 1)
-        .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
-        .transaction { transaction in
-            if isDragging {
-                transaction.animation = nil
-            }
-        }
+        .offset(y: isDragging ? fingerOffset : dragOffset)
+        .zIndex(isActiveDrag ? 1 : 0)
+        .scaleEffect(isActiveDrag ? 1.015 : 1)
+        .shadow(color: .black.opacity(isActiveDrag ? 0.28 : 0), radius: 10, x: 0, y: 6)
+        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.9), value: dragOffset)
         .onTapGesture {
             onOpenNotes()
         }
@@ -469,6 +470,10 @@ private struct RunnerCard: View {
         let hundredths = Int((elapsed * 100).rounded(.down)) % 100
 
         return String(format: "%02d:%02d.%02d", minutes, seconds, hundredths)
+    }
+
+    private var isActiveDrag: Bool {
+        isDragging || fingerOffset != 0
     }
 }
 
