@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="TrackSplits">
+  <meta name="theme-color" content="#000000">
+  <title>TrackSplits</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #000;
+      --card: #1c1c1c;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text: #fff;
+      --muted: rgba(235, 235, 245, 0.62);
+      --green: #70c78a;
+      --red: #db6161;
+      --cyan: #59c4db;
+      --row-stride: 82px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      overflow-x: hidden;
+    }
+
+    body {
+      min-height: 100svh;
+      user-select: none;
+      touch-action: pan-y;
+    }
+
+    button,
+    textarea,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .app {
+      min-height: 100svh;
+      background: #000;
+      padding-bottom: calc(104px + env(safe-area-inset-bottom));
+      position: relative;
+    }
+
+    .header {
+      align-items: center;
+      background: #000;
+      display: flex;
+      gap: 12px;
+      padding: calc(14px + env(safe-area-inset-top)) 18px 10px;
+      position: sticky;
+      top: 0;
+      z-index: 4;
+    }
+
+    .logo {
+      align-items: center;
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+      border-radius: 999px;
+      box-shadow: 0 5px 10px rgba(112, 199, 138, 0.26);
+      display: grid;
+      flex: 0 0 auto;
+      height: 48px;
+      justify-items: center;
+      position: relative;
+      width: 48px;
+    }
+
+    .logo::before {
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: inherit;
+      content: "";
+      inset: 0;
+      position: absolute;
+    }
+
+    .logo-face {
+      border: 4px solid rgba(0, 0, 0, 0.82);
+      border-radius: 50%;
+      height: 25px;
+      position: relative;
+      width: 25px;
+    }
+
+    .logo-face::before {
+      background: rgba(0, 0, 0, 0.82);
+      border-radius: 4px 4px 1px 1px;
+      content: "";
+      height: 6px;
+      left: 6px;
+      position: absolute;
+      top: -9px;
+      width: 5px;
+    }
+
+    .logo-face::after {
+      background: rgba(0, 0, 0, 0.82);
+      border-radius: 3px;
+      content: "";
+      height: 11px;
+      left: 9px;
+      position: absolute;
+      top: 5px;
+      transform: rotate(38deg);
+      transform-origin: center 2px;
+      width: 4px;
+    }
+
+    .brand {
+      min-width: 0;
+    }
+
+    .brand-title {
+      color: #fff;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0;
+      line-height: 1.05;
+    }
+
+    .brand-count {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 600;
+      margin-top: 3px;
+    }
+
+    .runner-list {
+      display: grid;
+      gap: 12px;
+      padding: 8px 10px 0;
+      position: relative;
+    }
+
+    .runner-card {
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      display: flex;
+      gap: 3px;
+      min-height: 72px;
+      padding: 10px 6px;
+      position: relative;
+      transition: transform 180ms cubic-bezier(0.22, 0.8, 0.28, 1), box-shadow 180ms ease;
+      width: 100%;
+      z-index: 1;
+    }
+
+    .runner-card.dragging {
+      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.28);
+      pointer-events: none;
+      transition: none;
+      z-index: 10;
+    }
+
+    .move-handle {
+      align-items: center;
+      align-self: stretch;
+      background: transparent;
+      display: flex;
+      flex: 0 0 14px;
+      justify-content: center;
+      padding: 0;
+      touch-action: none;
+    }
+
+    .move-dots {
+      display: grid;
+      gap: 3px;
+      pointer-events: none;
+    }
+
+    .move-dots span {
+      background: rgba(150, 150, 155, 0.95);
+      border-radius: 999px;
+      display: block;
+      height: 3.5px;
+      width: 3.5px;
+    }
+
+    .runner-name {
+      align-items: center;
+      color: #fff;
+      display: flex;
+      flex: 1 1 auto;
+      font-size: 17px;
+      font-weight: 600;
+      justify-content: center;
+      line-height: 1.22;
+      min-height: 50px;
+      min-width: 34px;
+      overflow-wrap: anywhere;
+      text-align: center;
+      white-space: pre-wrap;
+    }
+
+    .time {
+      color: #fff;
+      flex: 0 0 112px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0;
+      line-height: 1;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .control {
+      align-items: center;
+      border-radius: 8px;
+      color: #fff;
+      display: inline-flex;
+      flex: 0 0 auto;
+      font-size: 14px;
+      font-weight: 700;
+      height: 50px;
+      justify-content: center;
+    }
+
+    .start-stop {
+      background: var(--green);
+      width: 49px;
+    }
+
+    .start-stop.running {
+      background: var(--red);
+    }
+
+    .reset {
+      background: rgba(255, 255, 255, 0.14);
+      font-size: 22px;
+      width: 33px;
+    }
+
+    .delete {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 24px;
+      font-weight: 700;
+      width: 28px;
+    }
+
+    .add-runner {
+      align-items: center;
+      background: var(--green);
+      border-radius: 999px;
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      box-shadow: 0 7px 12px rgba(0, 0, 0, 0.45);
+      color: #fff;
+      display: flex;
+      font-size: 36px;
+      font-weight: 700;
+      height: 62px;
+      justify-content: center;
+      line-height: 1;
+      position: fixed;
+      right: 20px;
+      width: 62px;
+      z-index: 6;
+    }
+
+    .sheet-backdrop {
+      align-items: flex-end;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      inset: 0;
+      position: fixed;
+      z-index: 20;
+    }
+
+    .sheet-backdrop.open {
+      display: flex;
+    }
+
+    .sheet {
+      background: #161616;
+      border-radius: 18px 18px 0 0;
+      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.42);
+      max-height: 88svh;
+      overflow: auto;
+      padding-bottom: env(safe-area-inset-bottom);
+      width: 100%;
+    }
+
+    .sheet-bar {
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: space-between;
+      padding: 14px 16px;
+      position: sticky;
+      top: 0;
+      background: #161616;
+      z-index: 2;
+    }
+
+    .sheet-title {
+      font-size: 17px;
+      font-weight: 700;
+      left: 50%;
+      position: absolute;
+      transform: translateX(-50%);
+    }
+
+    .done {
+      background: transparent;
+      color: var(--green);
+      font-size: 17px;
+      font-weight: 600;
+      margin-left: auto;
+    }
+
+    .form-section {
+      padding: 18px 16px 0;
+    }
+
+    .section-title {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin: 0 0 7px;
+      text-transform: uppercase;
+    }
+
+    .field-group {
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .runner-editor,
+    .notes-editor {
+      background: transparent;
+      border: 0;
+      caret-color: var(--green);
+      color: #fff;
+      display: block;
+      outline: 0;
+      padding: 11px 12px;
+      resize: none;
+      width: 100%;
+    }
+
+    .runner-editor {
+      min-height: 44px;
+    }
+
+    .elapsed-row {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 17px;
+      font-weight: 700;
+      padding: 12px;
+    }
+
+    .notes-editor {
+      line-height: 1.35;
+      min-height: 156px;
+    }
+
+    @media (max-width: 390px) {
+      .brand-title {
+        font-size: 26px;
+      }
+
+      .runner-list {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+
+      .runner-card {
+        gap: 2px;
+        padding-left: 5px;
+        padding-right: 5px;
+      }
+
+      .time {
+        flex-basis: 108px;
+        font-size: 19px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="TrackSplits">
+    <header class="header">
+      <div class="logo" aria-hidden="true">
+        <div class="logo-face"></div>
+      </div>
+      <div class="brand">
+        <div class="brand-title">TrackSplits</div>
+        <div class="brand-count" id="runner-count">4 runners</div>
+      </div>
+    </header>
+
+    <section class="runner-list" id="runner-list" aria-label="Runners"></section>
+
+    <button class="add-runner" id="add-runner" type="button" aria-label="Add runner">+</button>
+  </main>
+
+  <div class="sheet-backdrop" id="sheet-backdrop" aria-hidden="true">
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-bar">
+        <div class="sheet-title" id="sheet-title">Notes</div>
+        <button class="done" id="done" type="button">Done</button>
+      </div>
+
+      <div class="form-section">
+        <h2 class="section-title">Runner</h2>
+        <div class="field-group">
+          <textarea class="runner-editor" id="runner-editor" autocapitalize="none" autocomplete="off" spellcheck="false"></textarea>
+          <div class="elapsed-row" id="sheet-elapsed">Elapsed 00:00.00</div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2 class="section-title">Notes</h2>
+        <div class="field-group">
+          <textarea class="notes-editor" id="notes-editor" placeholder="Workout details, timing cues, splits, etc." autocapitalize="none" autocomplete="off" spellcheck="true"></textarea>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const rowStride = 82;
+    const list = document.getElementById("runner-list");
+    const runnerCount = document.getElementById("runner-count");
+    const addButton = document.getElementById("add-runner");
+    const sheetBackdrop = document.getElementById("sheet-backdrop");
+    const doneButton = document.getElementById("done");
+    const runnerEditor = document.getElementById("runner-editor");
+    const notesEditor = document.getElementById("notes-editor");
+    const sheetElapsed = document.getElementById("sheet-elapsed");
+
+    let runners = Array.from({ length: 4 }, (_, index) => makeRunner(`Runner ${index + 1}`));
+    let selectedRunnerId = null;
+    let drag = null;
+    let lastTick = 0;
+
+    function makeRunner(name) {
+      return {
+        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        name,
+        elapsedBeforeStart: 0,
+        startedAt: null,
+        workout: { notes: "" }
+      };
+    }
+
+    function elapsed(runner, now = performance.now()) {
+      if (runner.startedAt === null) {
+        return runner.elapsedBeforeStart;
+      }
+
+      return runner.elapsedBeforeStart + ((now - runner.startedAt) / 1000);
+    }
+
+    function formattedElapsed(runner, now = performance.now()) {
+      const total = Math.max(0, elapsed(runner, now));
+      const minutes = Math.floor(total / 60);
+      const seconds = Math.floor(total) % 60;
+      const hundredths = Math.floor(total * 100) % 100;
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
+    }
+
+    function nextDefaultRunnerName() {
+      let runnerNumber = 1;
+      while (runners.some((runner) => runner.name === `Runner ${runnerNumber}`)) {
+        runnerNumber += 1;
+      }
+
+      return `Runner ${runnerNumber}`;
+    }
+
+    function commitRunnerNames() {
+      runners = runners.map((runner, index) => {
+        const trimmed = runner.name.trim();
+        return { ...runner, name: trimmed || `Runner ${index + 1}` };
+      });
+    }
+
+    function render() {
+      runnerCount.textContent = `${runners.length} ${runners.length === 1 ? "runner" : "runners"}`;
+      list.innerHTML = "";
+
+      runners.forEach((runner) => {
+        const card = document.createElement("article");
+        card.className = "runner-card";
+        card.dataset.runnerId = runner.id;
+        card.setAttribute("aria-label", runner.name);
+
+        const handle = document.createElement("button");
+        handle.className = "move-handle";
+        handle.type = "button";
+        handle.setAttribute("aria-label", `Move ${runner.name}`);
+        handle.innerHTML = "<span class=\"move-dots\"><span></span><span></span><span></span></span>";
+        handle.addEventListener("pointerdown", (event) => beginDrag(event, runner.id));
+
+        const name = document.createElement("div");
+        name.className = "runner-name";
+        name.textContent = runner.name;
+        name.addEventListener("click", () => openSheet(runner.id));
+
+        const time = document.createElement("div");
+        time.className = "time";
+        time.dataset.timeFor = runner.id;
+        time.textContent = formattedElapsed(runner);
+
+        const start = document.createElement("button");
+        start.className = `control start-stop${runner.startedAt !== null ? " running" : ""}`;
+        start.type = "button";
+        start.textContent = runner.startedAt !== null ? "Stop" : "Start";
+        start.addEventListener("click", (event) => {
+          event.stopPropagation();
+          toggleRunner(runner.id);
+        });
+
+        const reset = document.createElement("button");
+        reset.className = "control reset";
+        reset.type = "button";
+        reset.setAttribute("aria-label", `Reset ${runner.name}`);
+        reset.textContent = "↶";
+        reset.addEventListener("click", (event) => {
+          event.stopPropagation();
+          resetRunner(runner.id);
+        });
+
+        const del = document.createElement("button");
+        del.className = "delete";
+        del.type = "button";
+        del.setAttribute("aria-label", `Delete ${runner.name}`);
+        del.textContent = "×";
+        del.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeRunner(runner.id);
+        });
+
+        card.addEventListener("click", () => openSheet(runner.id));
+
+        card.append(handle, name, time, start, reset, del);
+        list.append(card);
+      });
+    }
+
+    function toggleRunner(id) {
+      const runner = runners.find((item) => item.id === id);
+      if (!runner) return;
+
+      const now = performance.now();
+      if (runner.startedAt !== null) {
+        runner.elapsedBeforeStart += (now - runner.startedAt) / 1000;
+        runner.startedAt = null;
+      } else {
+        runner.startedAt = now;
+      }
+
+      render();
+    }
+
+    function resetRunner(id) {
+      const runner = runners.find((item) => item.id === id);
+      if (!runner) return;
+
+      runner.elapsedBeforeStart = 0;
+      if (runner.startedAt !== null) {
+        runner.startedAt = performance.now();
+      }
+
+      updateTimes(performance.now());
+    }
+
+    function removeRunner(id) {
+      commitRunnerNames();
+      runners = runners.filter((runner) => runner.id !== id);
+      if (selectedRunnerId === id) {
+        closeSheet();
+      }
+      render();
+    }
+
+    function addRunner() {
+      commitRunnerNames();
+      runners.push(makeRunner(nextDefaultRunnerName()));
+      render();
+    }
+
+    function openSheet(id) {
+      if (drag) return;
+
+      commitRunnerNames();
+      selectedRunnerId = id;
+      const runner = runners.find((item) => item.id === id);
+      if (!runner) return;
+
+      runnerEditor.value = runner.name;
+      notesEditor.value = runner.workout.notes;
+      sheetElapsed.textContent = `Elapsed ${formattedElapsed(runner)}`;
+      sheetBackdrop.classList.add("open");
+      sheetBackdrop.setAttribute("aria-hidden", "false");
+      requestAnimationFrame(() => runnerEditor.focus());
+    }
+
+    function closeSheet() {
+      syncSheetFields();
+      selectedRunnerId = null;
+      sheetBackdrop.classList.remove("open");
+      sheetBackdrop.setAttribute("aria-hidden", "true");
+      document.activeElement?.blur();
+      render();
+    }
+
+    function syncSheetFields() {
+      if (!selectedRunnerId) return;
+
+      const runner = runners.find((item) => item.id === selectedRunnerId);
+      if (!runner) return;
+
+      runner.name = runnerEditor.value;
+      runner.workout.notes = notesEditor.value;
+      commitRunnerNames();
+    }
+
+    function beginDrag(event, id) {
+      event.preventDefault();
+      event.stopPropagation();
+      commitRunnerNames();
+
+      const card = event.currentTarget.closest(".runner-card");
+      if (!card) return;
+
+      const startIndex = runners.findIndex((runner) => runner.id === id);
+      if (startIndex === -1) return;
+
+      const rect = card.getBoundingClientRect();
+      drag = {
+        id,
+        pointerId: event.pointerId,
+        startIndex,
+        targetIndex: startIndex,
+        startY: event.clientY,
+        card,
+        height: rect.height
+      };
+
+      card.classList.add("dragging");
+      card.style.transform = "scale(1.015)";
+
+      event.currentTarget.setPointerCapture(event.pointerId);
+      window.addEventListener("pointermove", updateDrag, { passive: false });
+      window.addEventListener("pointerup", finishDrag, { once: true });
+      window.addEventListener("pointercancel", finishDrag, { once: true });
+    }
+
+    function updateDrag(event) {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+
+      event.preventDefault();
+      const translation = event.clientY - drag.startY;
+      const proposed = drag.startIndex + Math.round(translation / rowStride);
+      drag.targetIndex = Math.min(Math.max(proposed, 0), runners.length - 1);
+
+      drag.card.style.transform = `translate3d(0, ${translation}px, 0) scale(1.015)`;
+      moveCardsAway();
+    }
+
+    function moveCardsAway() {
+      const cards = list.querySelectorAll(".runner-card");
+      cards.forEach((card) => {
+        if (card.dataset.runnerId === drag.id) return;
+
+        const index = runners.findIndex((runner) => runner.id === card.dataset.runnerId);
+        let offset = 0;
+        if (drag.targetIndex > drag.startIndex && index > drag.startIndex && index <= drag.targetIndex) {
+          offset = -rowStride;
+        }
+
+        if (drag.targetIndex < drag.startIndex && index >= drag.targetIndex && index < drag.startIndex) {
+          offset = rowStride;
+        }
+
+        card.style.transform = offset ? `translate3d(0, ${offset}px, 0)` : "";
+      });
+    }
+
+    function finishDrag(event) {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+
+      window.removeEventListener("pointermove", updateDrag);
+      const { id, targetIndex } = drag;
+      const currentIndex = runners.findIndex((runner) => runner.id === id);
+
+      if (currentIndex !== -1 && currentIndex !== targetIndex) {
+        const [runner] = runners.splice(currentIndex, 1);
+        runners.splice(targetIndex, 0, runner);
+      }
+
+      drag = null;
+      render();
+    }
+
+    function updateTimes(now) {
+      document.querySelectorAll("[data-time-for]").forEach((node) => {
+        const runner = runners.find((item) => item.id === node.dataset.timeFor);
+        if (runner) {
+          node.textContent = formattedElapsed(runner, now);
+        }
+      });
+
+      if (selectedRunnerId) {
+        const runner = runners.find((item) => item.id === selectedRunnerId);
+        if (runner) {
+          sheetElapsed.textContent = `Elapsed ${formattedElapsed(runner, now)}`;
+        }
+      }
+    }
+
+    function tick(now) {
+      if (now - lastTick > 16) {
+        updateTimes(now);
+        lastTick = now;
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    addButton.addEventListener("click", addRunner);
+    doneButton.addEventListener("click", closeSheet);
+    runnerEditor.addEventListener("input", syncSheetFields);
+    notesEditor.addEventListener("input", syncSheetFields);
+    sheetBackdrop.addEventListener("click", (event) => {
+      if (event.target === sheetBackdrop) {
+        closeSheet();
+      }
+    });
+
+    render();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
