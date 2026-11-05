@@ -150,6 +150,22 @@
       position: relative;
     }
 
+    .runner-item {
+      position: relative;
+      transition: transform 180ms cubic-bezier(0.22, 0.8, 0.28, 1);
+      z-index: 1;
+    }
+
+    .runner-item.dragging {
+      pointer-events: none;
+      transition: none;
+      z-index: 10;
+    }
+
+    .runner-item.dragging .runner-card {
+      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.28);
+    }
+
     .runner-card {
       align-items: center;
       background: var(--card);
@@ -160,16 +176,8 @@
       min-height: 72px;
       padding: 10px 6px;
       position: relative;
-      transition: transform 180ms cubic-bezier(0.22, 0.8, 0.28, 1), box-shadow 180ms ease;
+      transition: box-shadow 180ms ease;
       width: 100%;
-      z-index: 1;
-    }
-
-    .runner-card.dragging {
-      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.28);
-      pointer-events: none;
-      transition: none;
-      z-index: 10;
     }
 
     .move-handle {
@@ -204,12 +212,13 @@
       flex: 1 1 auto;
       font-size: 17px;
       font-weight: 600;
-      justify-content: center;
+      justify-content: flex-start;
       line-height: 1.22;
       min-height: 50px;
       min-width: 34px;
       overflow-wrap: anywhere;
-      text-align: center;
+      padding-left: 2px;
+      text-align: left;
       white-space: pre-wrap;
     }
 
@@ -248,8 +257,13 @@
 
     .reset {
       background: rgba(255, 255, 255, 0.14);
-      font-size: 22px;
       width: 33px;
+    }
+
+    .reset svg {
+      display: block;
+      height: 22px;
+      width: 22px;
     }
 
     .delete {
@@ -279,59 +293,35 @@
       z-index: 6;
     }
 
-    .sheet-backdrop {
-      align-items: flex-end;
-      background: rgba(0, 0, 0, 0.45);
-      display: none;
-      inset: 0;
-      position: fixed;
-      z-index: 20;
-    }
-
-    .sheet-backdrop.open {
-      display: flex;
-    }
-
-    .sheet {
+    .runner-details {
+      animation: detailDrop 180ms ease-out;
       background: #161616;
-      border-radius: 18px 18px 0 0;
-      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.42);
-      max-height: 88svh;
-      overflow: auto;
-      padding-bottom: env(safe-area-inset-bottom);
-      width: 100%;
+      border: 1px solid var(--card-border);
+      border-top: 0;
+      border-radius: 0 0 8px 8px;
+      margin: -1px 6px 0 20px;
+      overflow: hidden;
+      transform-origin: top;
     }
 
-    .sheet-bar {
-      align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      justify-content: space-between;
-      padding: 14px 16px;
-      position: sticky;
-      top: 0;
-      background: #161616;
-      z-index: 2;
+    @keyframes detailDrop {
+      from {
+        opacity: 0;
+        transform: scaleY(0.78) translateY(-6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scaleY(1) translateY(0);
+      }
     }
 
-    .sheet-title {
-      font-size: 17px;
-      font-weight: 700;
-      left: 50%;
-      position: absolute;
-      transform: translateX(-50%);
+    .detail-section {
+      padding: 12px;
     }
 
-    .done {
-      background: transparent;
-      color: var(--green);
-      font-size: 17px;
-      font-weight: 600;
-      margin-left: auto;
-    }
-
-    .form-section {
-      padding: 18px 16px 0;
+    .detail-section + .detail-section {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .section-title {
@@ -377,7 +367,8 @@
 
     .notes-editor {
       line-height: 1.35;
-      min-height: 156px;
+      min-height: 42px;
+      overflow: hidden;
     }
 
     @media (max-width: 390px) {
@@ -420,40 +411,11 @@
     <button class="add-runner" id="add-runner" type="button" aria-label="Add runner">+</button>
   </main>
 
-  <div class="sheet-backdrop" id="sheet-backdrop" aria-hidden="true">
-    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-      <div class="sheet-bar">
-        <div class="sheet-title" id="sheet-title">Notes</div>
-        <button class="done" id="done" type="button">Done</button>
-      </div>
-
-      <div class="form-section">
-        <h2 class="section-title">Runner</h2>
-        <div class="field-group">
-          <textarea class="runner-editor" id="runner-editor" autocapitalize="none" autocomplete="off" spellcheck="false"></textarea>
-          <div class="elapsed-row" id="sheet-elapsed">Elapsed 00:00.00</div>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <h2 class="section-title">Notes</h2>
-        <div class="field-group">
-          <textarea class="notes-editor" id="notes-editor" placeholder="Workout details, timing cues, splits, etc." autocapitalize="none" autocomplete="off" spellcheck="true"></textarea>
-        </div>
-      </div>
-    </section>
-  </div>
-
   <script>
     const rowStride = 82;
     const list = document.getElementById("runner-list");
     const runnerCount = document.getElementById("runner-count");
     const addButton = document.getElementById("add-runner");
-    const sheetBackdrop = document.getElementById("sheet-backdrop");
-    const doneButton = document.getElementById("done");
-    const runnerEditor = document.getElementById("runner-editor");
-    const notesEditor = document.getElementById("notes-editor");
-    const sheetElapsed = document.getElementById("sheet-elapsed");
 
     let runners = Array.from({ length: 4 }, (_, index) => makeRunner(`Runner ${index + 1}`));
     let selectedRunnerId = null;
@@ -462,7 +424,7 @@
 
     function makeRunner(name) {
       return {
-        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
         name,
         elapsedBeforeStart: 0,
         startedAt: null,
@@ -507,6 +469,10 @@
       list.innerHTML = "";
 
       runners.forEach((runner) => {
+        const item = document.createElement("div");
+        item.className = "runner-item";
+        item.dataset.runnerId = runner.id;
+
         const card = document.createElement("article");
         card.className = "runner-card";
         card.dataset.runnerId = runner.id;
@@ -522,7 +488,10 @@
         const name = document.createElement("div");
         name.className = "runner-name";
         name.textContent = runner.name;
-        name.addEventListener("click", () => openSheet(runner.id));
+        name.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openDetails(runner.id);
+        });
 
         const time = document.createElement("div");
         time.className = "time";
@@ -542,7 +511,12 @@
         reset.className = "control reset";
         reset.type = "button";
         reset.setAttribute("aria-label", `Reset ${runner.name}`);
-        reset.textContent = "↶";
+        reset.innerHTML = `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 7H4V3" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M4.6 7.2A8 8 0 1 1 4 12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"></path>
+          </svg>
+        `;
         reset.addEventListener("click", (event) => {
           event.stopPropagation();
           resetRunner(runner.id);
@@ -558,11 +532,19 @@
           removeRunner(runner.id);
         });
 
-        card.addEventListener("click", () => openSheet(runner.id));
+        card.addEventListener("click", () => openDetails(runner.id));
 
         card.append(handle, name, time, start, reset, del);
-        list.append(card);
+        item.append(card);
+
+        if (selectedRunnerId === runner.id) {
+          item.append(createDetails(runner));
+        }
+
+        list.append(item);
       });
+
+      autoSizeEditors();
     }
 
     function toggleRunner(id) {
@@ -596,7 +578,7 @@
       commitRunnerNames();
       runners = runners.filter((runner) => runner.id !== id);
       if (selectedRunnerId === id) {
-        closeSheet();
+        selectedRunnerId = null;
       }
       render();
     }
@@ -607,40 +589,97 @@
       render();
     }
 
-    function openSheet(id) {
+    function openDetails(id) {
       if (drag) return;
 
       commitRunnerNames();
-      selectedRunnerId = id;
-      const runner = runners.find((item) => item.id === id);
-      if (!runner) return;
-
-      runnerEditor.value = runner.name;
-      notesEditor.value = runner.workout.notes;
-      sheetElapsed.textContent = `Elapsed ${formattedElapsed(runner)}`;
-      sheetBackdrop.classList.add("open");
-      sheetBackdrop.setAttribute("aria-hidden", "false");
-      requestAnimationFrame(() => runnerEditor.focus());
-    }
-
-    function closeSheet() {
-      syncSheetFields();
-      selectedRunnerId = null;
-      sheetBackdrop.classList.remove("open");
-      sheetBackdrop.setAttribute("aria-hidden", "true");
-      document.activeElement?.blur();
+      selectedRunnerId = selectedRunnerId === id ? null : id;
       render();
     }
 
-    function syncSheetFields() {
-      if (!selectedRunnerId) return;
+    function createDetails(runner) {
+      const details = document.createElement("section");
+      details.className = "runner-details";
 
-      const runner = runners.find((item) => item.id === selectedRunnerId);
+      const runnerSection = document.createElement("div");
+      runnerSection.className = "detail-section";
+
+      const runnerTitle = document.createElement("h2");
+      runnerTitle.className = "section-title";
+      runnerTitle.textContent = "Runner";
+
+      const runnerFields = document.createElement("div");
+      runnerFields.className = "field-group";
+
+      const runnerEditor = document.createElement("textarea");
+      runnerEditor.className = "runner-editor autosize";
+      runnerEditor.value = runner.name;
+      runnerEditor.autocapitalize = "none";
+      runnerEditor.autocomplete = "off";
+      runnerEditor.spellcheck = false;
+      runnerEditor.addEventListener("click", (event) => event.stopPropagation());
+      runnerEditor.addEventListener("input", () => {
+        runner.name = runnerEditor.value;
+        autoSize(runnerEditor);
+        updateVisibleName(runner.id);
+      });
+
+      const elapsedRow = document.createElement("div");
+      elapsedRow.className = "elapsed-row";
+      elapsedRow.dataset.detailElapsedFor = runner.id;
+      elapsedRow.textContent = `Elapsed ${formattedElapsed(runner)}`;
+
+      runnerFields.append(runnerEditor, elapsedRow);
+      runnerSection.append(runnerTitle, runnerFields);
+
+      const notesSection = document.createElement("div");
+      notesSection.className = "detail-section";
+
+      const notesTitle = document.createElement("h2");
+      notesTitle.className = "section-title";
+      notesTitle.textContent = "Notes";
+
+      const notesFields = document.createElement("div");
+      notesFields.className = "field-group";
+
+      const notesEditor = document.createElement("textarea");
+      notesEditor.className = "notes-editor autosize";
+      notesEditor.value = runner.workout.notes;
+      notesEditor.placeholder = "Workout details, timing cues, splits, etc.";
+      notesEditor.rows = 1;
+      notesEditor.autocapitalize = "none";
+      notesEditor.autocomplete = "off";
+      notesEditor.spellcheck = true;
+      notesEditor.addEventListener("click", (event) => event.stopPropagation());
+      notesEditor.addEventListener("input", () => {
+        runner.workout.notes = notesEditor.value;
+        autoSize(notesEditor);
+      });
+
+      notesFields.append(notesEditor);
+      notesSection.append(notesTitle, notesFields);
+      details.append(runnerSection, notesSection);
+
+      return details;
+    }
+
+    function updateVisibleName(id) {
+      const runner = runners.find((item) => item.id === id);
       if (!runner) return;
 
-      runner.name = runnerEditor.value;
-      runner.workout.notes = notesEditor.value;
-      commitRunnerNames();
+      const name = list.querySelector(`[data-runner-id="${id}"] .runner-name`);
+      if (name) {
+        name.textContent = runner.name;
+      }
+    }
+
+    function autoSizeEditors() {
+      document.querySelectorAll(".autosize").forEach(autoSize);
+    }
+
+    function autoSize(editor) {
+      editor.style.height = "auto";
+      editor.style.height = `${editor.scrollHeight}px`;
     }
 
     function beginDrag(event, id) {
@@ -648,25 +687,25 @@
       event.stopPropagation();
       commitRunnerNames();
 
-      const card = event.currentTarget.closest(".runner-card");
-      if (!card) return;
+      const item = event.currentTarget.closest(".runner-item");
+      if (!item) return;
 
       const startIndex = runners.findIndex((runner) => runner.id === id);
       if (startIndex === -1) return;
 
-      const rect = card.getBoundingClientRect();
+      const rect = item.getBoundingClientRect();
       drag = {
         id,
         pointerId: event.pointerId,
         startIndex,
         targetIndex: startIndex,
         startY: event.clientY,
-        card,
+        item,
         height: rect.height
       };
 
-      card.classList.add("dragging");
-      card.style.transform = "scale(1.015)";
+      item.classList.add("dragging");
+      item.style.transform = "scale(1.015)";
 
       event.currentTarget.setPointerCapture(event.pointerId);
       window.addEventListener("pointermove", updateDrag, { passive: false });
@@ -682,16 +721,16 @@
       const proposed = drag.startIndex + Math.round(translation / rowStride);
       drag.targetIndex = Math.min(Math.max(proposed, 0), runners.length - 1);
 
-      drag.card.style.transform = `translate3d(0, ${translation}px, 0) scale(1.015)`;
+      drag.item.style.transform = `translate3d(0, ${translation}px, 0) scale(1.015)`;
       moveCardsAway();
     }
 
     function moveCardsAway() {
-      const cards = list.querySelectorAll(".runner-card");
-      cards.forEach((card) => {
-        if (card.dataset.runnerId === drag.id) return;
+      const items = list.querySelectorAll(".runner-item");
+      items.forEach((item) => {
+        if (item.dataset.runnerId === drag.id) return;
 
-        const index = runners.findIndex((runner) => runner.id === card.dataset.runnerId);
+        const index = runners.findIndex((runner) => runner.id === item.dataset.runnerId);
         let offset = 0;
         if (drag.targetIndex > drag.startIndex && index > drag.startIndex && index <= drag.targetIndex) {
           offset = -rowStride;
@@ -701,7 +740,7 @@
           offset = rowStride;
         }
 
-        card.style.transform = offset ? `translate3d(0, ${offset}px, 0)` : "";
+        item.style.transform = offset ? `translate3d(0, ${offset}px, 0)` : "";
       });
     }
 
@@ -729,12 +768,12 @@
         }
       });
 
-      if (selectedRunnerId) {
-        const runner = runners.find((item) => item.id === selectedRunnerId);
+      document.querySelectorAll("[data-detail-elapsed-for]").forEach((node) => {
+        const runner = runners.find((item) => item.id === node.dataset.detailElapsedFor);
         if (runner) {
-          sheetElapsed.textContent = `Elapsed ${formattedElapsed(runner, now)}`;
+          node.textContent = `Elapsed ${formattedElapsed(runner, now)}`;
         }
-      }
+      });
     }
 
     function tick(now) {
@@ -747,14 +786,6 @@
     }
 
     addButton.addEventListener("click", addRunner);
-    doneButton.addEventListener("click", closeSheet);
-    runnerEditor.addEventListener("input", syncSheetFields);
-    notesEditor.addEventListener("input", syncSheetFields);
-    sheetBackdrop.addEventListener("click", (event) => {
-      if (event.target === sheetBackdrop) {
-        closeSheet();
-      }
-    });
 
     render();
     requestAnimationFrame(tick);
