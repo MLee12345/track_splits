@@ -451,7 +451,11 @@ private struct RunnerCard: View {
         .zIndex(isDragging ? 1 : 0)
         .scaleEffect(isDragging ? 1.015 : 1)
         .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
-        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.9), value: dragOffset)
+        .transaction { transaction in
+            if isDragging {
+                transaction.animation = nil
+            }
+        }
         .onTapGesture {
             onOpenNotes()
         }
