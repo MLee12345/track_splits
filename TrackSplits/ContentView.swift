@@ -67,6 +67,10 @@ struct ContentView: View {
 
     @State private var runners: [RunnerTimer] = (1...4).map { RunnerTimer(name: "Runner \($0)") }
     @State private var selectedRunnerID: UUID?
+    @State private var draggedRunnerID: UUID?
+    @State private var dragStartIndex: Int?
+    @State private var dragTargetIndex: Int?
+    @State private var dragTranslation: CGFloat = 0
     @FocusState private var focusedRunnerID: UUID?
 
     var body: some View {
@@ -81,8 +85,13 @@ struct ContentView: View {
                                 RunnerCard(
                                     runner: $runner,
                                     now: timeline.date,
-                                    onDragEnded: { translation in
-                                        moveRunner(id: runner.id, translation: translation)
+                                    dragOffset: dragOffset(for: runner.id),
+                                    isDragging: draggedRunnerID == runner.id,
+                                    onDragChanged: { translation in
+                                        updateRunnerDrag(id: runner.id, translation: translation)
+                                    },
+                                    onDragEnded: {
+                                        endRunnerDrag()
                                     },
                                     onOpenNotes: {
                                         commitRunnerName()
@@ -125,6 +134,10 @@ struct ContentView: View {
             .onAppear {
                 selectedRunnerID = nil
                 focusedRunnerID = nil
+                draggedRunnerID = nil
+                dragStartIndex = nil
+                dragTargetIndex = nil
+                dragTranslation = 0
             }
             .sheet(isPresented: workoutSheetIsPresented) {
                 if let selectedRunnerBinding {
@@ -177,23 +190,86 @@ struct ContentView: View {
         runners.removeAll { $0.id == id }
     }
 
-    private func moveRunner(id: UUID, translation: CGFloat) {
-        guard abs(translation) >= runnerRowStride * 0.35,
-              let currentIndex = runners.firstIndex(where: { $0.id == id }) else {
+    private func updateRunnerDrag(id: UUID, translation: CGFloat) {
+        focusedRunnerID = nil
+
+        if draggedRunnerID != id {
+            draggedRunnerID = id
+            dragStartIndex = runners.firstIndex { $0.id == id }
+            dragTargetIndex = dragStartIndex
+            dragTranslation = 0
+        }
+
+        guard let startIndex = dragStartIndex else {
             return
         }
 
-        let offset = Int((translation / runnerRowStride).rounded())
-        let newIndex = min(max(currentIndex + offset, 0), runners.count - 1)
+        dragTranslation = translation
 
-        guard newIndex != currentIndex else {
+        let proposedIndex = startIndex + Int((translation / runnerRowStride).rounded())
+        let targetIndex = min(max(proposedIndex, 0), runners.count - 1)
+
+        if targetIndex != dragTargetIndex {
+            withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.9)) {
+                dragTargetIndex = targetIndex
+            }
+        }
+    }
+
+    private func endRunnerDrag() {
+        guard let draggedRunnerID,
+              let startIndex = dragStartIndex,
+              let targetIndex = dragTargetIndex else {
+            resetDrag()
             return
         }
 
-        withAnimation(.interactiveSpring(response: 0.26, dampingFraction: 0.88)) {
-            let runner = runners.remove(at: currentIndex)
-            runners.insert(runner, at: newIndex)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+
+        withTransaction(transaction) {
+            if startIndex != targetIndex,
+               let currentIndex = runners.firstIndex(where: { $0.id == draggedRunnerID }) {
+                let runner = runners.remove(at: currentIndex)
+                let insertionIndex = min(max(targetIndex, 0), runners.count)
+                runners.insert(runner, at: insertionIndex)
+            }
+
+            resetDrag()
         }
+    }
+
+    private func resetDrag() {
+        draggedRunnerID = nil
+        dragStartIndex = nil
+        dragTargetIndex = nil
+        dragTranslation = 0
+    }
+
+    private func dragOffset(for id: UUID) -> CGFloat {
+        guard let draggedRunnerID,
+              let startIndex = dragStartIndex,
+              let targetIndex = dragTargetIndex else {
+            return 0
+        }
+
+        if draggedRunnerID == id {
+            return dragTranslation
+        }
+
+        guard let index = runners.firstIndex(where: { $0.id == id }) else {
+            return 0
+        }
+
+        if targetIndex > startIndex, index > startIndex, index <= targetIndex {
+            return -runnerRowStride
+        }
+
+        if targetIndex < startIndex, index >= targetIndex, index < startIndex {
+            return runnerRowStride
+        }
+
+        return 0
     }
 
     private func nextDefaultRunnerName() -> String {
@@ -279,11 +355,12 @@ private struct CardMoveHandle: View {
 private struct RunnerCard: View {
     @Binding var runner: RunnerTimer
     let now: Date
-    let onDragEnded: (CGFloat) -> Void
+    let dragOffset: CGFloat
+    let isDragging: Bool
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
     let onOpenNotes: () -> Void
     let onDelete: () -> Void
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 3) {
@@ -292,16 +369,10 @@ private struct RunnerCard: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            isDragging = true
-                            dragOffset = value.translation.height
+                            onDragChanged(value.translation.height)
                         }
-                        .onEnded { value in
-                            onDragEnded(value.translation.height)
-
-                            withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
-                                dragOffset = 0
-                                isDragging = false
-                            }
+                        .onEnded { _ in
+                            onDragEnded()
                         }
                 )
 
@@ -380,6 +451,7 @@ private struct RunnerCard: View {
         .zIndex(isDragging ? 1 : 0)
         .scaleEffect(isDragging ? 1.015 : 1)
         .shadow(color: .black.opacity(isDragging ? 0.28 : 0), radius: 10, x: 0, y: 6)
+        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.9), value: dragOffset)
         .onTapGesture {
             onOpenNotes()
         }
