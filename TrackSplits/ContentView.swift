@@ -63,13 +63,9 @@ struct WorkoutSettings: Equatable {
 }
 
 struct ContentView: View {
-    private let runnerRowStride: CGFloat = 82
-
     @State private var runners: [RunnerTimer] = (1...4).map { RunnerTimer(name: "Runner \($0)") }
     @State private var selectedRunnerID: UUID?
     @State private var draggedRunnerID: UUID?
-    @State private var dragStartIndex: Int?
-    @State private var dragCurrentIndex: Int?
     @State private var dragTranslation: CGFloat = 0
     @FocusState private var focusedRunnerID: UUID?
 
@@ -135,8 +131,6 @@ struct ContentView: View {
                 selectedRunnerID = nil
                 focusedRunnerID = nil
                 draggedRunnerID = nil
-                dragStartIndex = nil
-                dragCurrentIndex = nil
                 dragTranslation = 0
             }
             .sheet(isPresented: workoutSheetIsPresented) {
@@ -195,45 +189,18 @@ struct ContentView: View {
 
         if draggedRunnerID != id {
             draggedRunnerID = id
-            dragStartIndex = runners.firstIndex { $0.id == id }
-            dragCurrentIndex = dragStartIndex
             dragTranslation = 0
         }
 
-        guard let startIndex = dragStartIndex,
-              runners.indices.contains(startIndex) else {
-            return
-        }
-
         dragTranslation = translation
-
-        let proposedIndex = startIndex + Int((translation / runnerRowStride).rounded())
-        let targetIndex = min(max(proposedIndex, 0), runners.count - 1)
-
-        if targetIndex != dragCurrentIndex {
-            withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
-                dragCurrentIndex = targetIndex
-            }
-        }
     }
 
     private func endRunnerDrag() {
-        if let draggedRunnerID,
-           let startIndex = dragStartIndex,
-           let currentIndex = dragCurrentIndex,
-           startIndex != currentIndex,
-           let liveIndex = runners.firstIndex(where: { $0.id == draggedRunnerID }) {
-            var updatedRunners = runners
-            let runner = updatedRunners.remove(at: liveIndex)
-            let insertionIndex = min(max(currentIndex, 0), updatedRunners.count)
-            updatedRunners.insert(runner, at: insertionIndex)
-            runners = updatedRunners
+        withAnimation(.interactiveSpring(response: 0.24, dampingFraction: 0.86)) {
+            dragTranslation = 0
         }
 
-        dragTranslation = 0
         draggedRunnerID = nil
-        dragStartIndex = nil
-        dragCurrentIndex = nil
     }
 
     private func dragOffset(for id: UUID) -> CGFloat {
@@ -482,7 +449,7 @@ private struct WorkoutDetailView: View {
                 Section("Runner") {
                     TextEditor(text: $runner.name)
                         .font(.body)
-                        .textInputAutocapitalization(.words)
+                        .textInputAutocapitalization(.never)
                         .frame(minHeight: 28)
                         .scrollContentBackground(.hidden)
                     Text("Elapsed \(formattedElapsed)")
@@ -492,6 +459,7 @@ private struct WorkoutDetailView: View {
 
                 Section("Notes") {
                     TextField("Workout details, timing cues, splits, etc.", text: $runner.workout.notes, axis: .vertical)
+                        .textInputAutocapitalization(.never)
                         .lineLimit(6...12)
                 }
             }
