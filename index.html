@@ -299,7 +299,7 @@
       border: 1px solid var(--card-border);
       border-top: 0;
       border-radius: 0 0 8px 8px;
-      margin: -1px 6px 0 20px;
+      margin: -1px 0 0;
       overflow: hidden;
       transform-origin: top;
     }
@@ -339,7 +339,6 @@
       overflow: hidden;
     }
 
-    .runner-editor,
     .notes-editor {
       background: transparent;
       border: 0;
@@ -350,19 +349,6 @@
       padding: 11px 12px;
       resize: none;
       width: 100%;
-    }
-
-    .runner-editor {
-      min-height: 44px;
-    }
-
-    .elapsed-row {
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      color: #fff;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 17px;
-      font-weight: 700;
-      padding: 12px;
     }
 
     .notes-editor {
@@ -601,37 +587,6 @@
       const details = document.createElement("section");
       details.className = "runner-details";
 
-      const runnerSection = document.createElement("div");
-      runnerSection.className = "detail-section";
-
-      const runnerTitle = document.createElement("h2");
-      runnerTitle.className = "section-title";
-      runnerTitle.textContent = "Runner";
-
-      const runnerFields = document.createElement("div");
-      runnerFields.className = "field-group";
-
-      const runnerEditor = document.createElement("textarea");
-      runnerEditor.className = "runner-editor autosize";
-      runnerEditor.value = runner.name;
-      runnerEditor.autocapitalize = "none";
-      runnerEditor.autocomplete = "off";
-      runnerEditor.spellcheck = false;
-      runnerEditor.addEventListener("click", (event) => event.stopPropagation());
-      runnerEditor.addEventListener("input", () => {
-        runner.name = runnerEditor.value;
-        autoSize(runnerEditor);
-        updateVisibleName(runner.id);
-      });
-
-      const elapsedRow = document.createElement("div");
-      elapsedRow.className = "elapsed-row";
-      elapsedRow.dataset.detailElapsedFor = runner.id;
-      elapsedRow.textContent = `Elapsed ${formattedElapsed(runner)}`;
-
-      runnerFields.append(runnerEditor, elapsedRow);
-      runnerSection.append(runnerTitle, runnerFields);
-
       const notesSection = document.createElement("div");
       notesSection.className = "detail-section";
 
@@ -658,19 +613,9 @@
 
       notesFields.append(notesEditor);
       notesSection.append(notesTitle, notesFields);
-      details.append(runnerSection, notesSection);
+      details.append(notesSection);
 
       return details;
-    }
-
-    function updateVisibleName(id) {
-      const runner = runners.find((item) => item.id === id);
-      if (!runner) return;
-
-      const name = list.querySelector(`[data-runner-id="${id}"] .runner-name`);
-      if (name) {
-        name.textContent = runner.name;
-      }
     }
 
     function autoSizeEditors() {
@@ -768,12 +713,6 @@
         }
       });
 
-      document.querySelectorAll("[data-detail-elapsed-for]").forEach((node) => {
-        const runner = runners.find((item) => item.id === node.dataset.detailElapsedFor);
-        if (runner) {
-          node.textContent = `Elapsed ${formattedElapsed(runner, now)}`;
-        }
-      });
     }
 
     function tick(now) {
