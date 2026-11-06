@@ -111,16 +111,45 @@
       width: 5px;
     }
 
-    .logo-face::after {
+    .logo-hand {
       background: rgba(0, 0, 0, 0.82);
       border-radius: 3px;
-      content: "";
-      height: 11px;
-      left: 9px;
+      bottom: 50%;
+      left: 50%;
       position: absolute;
-      top: 5px;
-      transform: rotate(38deg);
-      transform-origin: center 2px;
+      transform: translateX(-50%) rotate(var(--angle, 0deg));
+      transform-origin: 50% 100%;
+    }
+
+    .logo-hour {
+      height: 7px;
+      width: 4px;
+    }
+
+    .logo-minute {
+      height: 11px;
+      width: 3px;
+    }
+
+    .logo-center {
+      background: rgba(0, 0, 0, 0.86);
+      border-radius: 999px;
+      height: 7px;
+      left: 50%;
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 7px;
+    }
+
+    .logo-face::after {
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      content: "";
+      height: 5px;
+      left: 2px;
+      position: absolute;
+      top: 2px;
       width: 4px;
     }
 
@@ -393,7 +422,11 @@
   <main class="app" aria-label="TrackSplits">
     <header class="header">
       <div class="logo" aria-hidden="true">
-        <div class="logo-face"></div>
+        <div class="logo-face">
+          <span class="logo-hand logo-hour" id="logo-hour"></span>
+          <span class="logo-hand logo-minute" id="logo-minute"></span>
+          <span class="logo-center"></span>
+        </div>
       </div>
       <div class="brand">
         <div class="brand-title">TrackSplits</div>
@@ -411,6 +444,8 @@
     const list = document.getElementById("runner-list");
     const runnerCount = document.getElementById("runner-count");
     const addButton = document.getElementById("add-runner");
+    const logoHour = document.getElementById("logo-hour");
+    const logoMinute = document.getElementById("logo-minute");
 
     let runners = Array.from({ length: 4 }, (_, index) => makeRunner(`Runner ${index + 1}`));
     let selectedRunnerId = null;
@@ -743,6 +778,16 @@
 
     }
 
+    function updateClockLogo() {
+      const now = new Date();
+      const seconds = now.getSeconds();
+      const minutes = now.getMinutes() + seconds / 60;
+      const hours = (now.getHours() % 12) + minutes / 60;
+
+      logoHour.style.setProperty("--angle", `${hours * 30}deg`);
+      logoMinute.style.setProperty("--angle", `${minutes * 6}deg`);
+    }
+
     function tick(now) {
       if (now - lastTick > 16) {
         updateTimes(now);
@@ -755,6 +800,8 @@
     addButton.addEventListener("click", addRunner);
 
     render();
+    updateClockLogo();
+    setInterval(updateClockLogo, 1000);
     requestAnimationFrame(tick);
   </script>
 </body>
