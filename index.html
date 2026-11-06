@@ -206,20 +206,23 @@
     }
 
     .runner-name {
-      align-items: center;
+      background: transparent;
+      border: 0;
+      caret-color: var(--green);
       color: #fff;
-      display: flex;
       flex: 1 1 auto;
       font-size: 17px;
       font-weight: 600;
-      justify-content: flex-start;
       line-height: 1.22;
       min-height: 50px;
       min-width: 34px;
       overflow-wrap: anywhere;
-      padding-left: 2px;
+      outline: 0;
+      padding: 14px 2px 10px;
+      resize: none;
       text-align: left;
       white-space: pre-wrap;
+      width: 0;
     }
 
     .time {
@@ -294,26 +297,25 @@
     }
 
     .runner-details {
-      animation: detailDrop 180ms ease-out;
       background: #161616;
       border: 1px solid var(--card-border);
       border-top: 0;
+      border-color: transparent;
       border-radius: 0 0 8px 8px;
       margin: -1px 0 0;
+      max-height: 0;
+      opacity: 0;
       overflow: hidden;
+      transform: translateY(-6px);
       transform-origin: top;
+      transition: max-height 220ms cubic-bezier(0.22, 0.8, 0.28, 1), opacity 160ms ease, transform 220ms cubic-bezier(0.22, 0.8, 0.28, 1), border-color 160ms ease;
     }
 
-    @keyframes detailDrop {
-      from {
-        opacity: 0;
-        transform: scaleY(0.78) translateY(-6px);
-      }
-
-      to {
-        opacity: 1;
-        transform: scaleY(1) translateY(0);
-      }
+    .runner-details.open {
+      border-color: var(--card-border);
+      max-height: 220px;
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .detail-section {
@@ -322,15 +324,6 @@
 
     .detail-section + .detail-section {
       border-top: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .section-title {
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      margin: 0 0 7px;
-      text-transform: uppercase;
     }
 
     .field-group {
@@ -471,12 +464,24 @@
         handle.innerHTML = "<span class=\"move-dots\"><span></span><span></span><span></span></span>";
         handle.addEventListener("pointerdown", (event) => beginDrag(event, runner.id));
 
-        const name = document.createElement("div");
-        name.className = "runner-name";
-        name.textContent = runner.name;
+        const name = document.createElement("textarea");
+        name.className = "runner-name autosize";
+        name.value = runner.name;
+        name.rows = 1;
+        name.autocapitalize = "none";
+        name.autocomplete = "off";
+        name.spellcheck = false;
         name.addEventListener("click", (event) => {
           event.stopPropagation();
-          openDetails(runner.id);
+        });
+        name.addEventListener("input", () => {
+          runner.name = name.value;
+          card.setAttribute("aria-label", runner.name);
+          autoSize(name);
+        });
+        name.addEventListener("blur", () => {
+          commitRunnerNames();
+          render();
         });
 
         const time = document.createElement("div");
@@ -523,9 +528,7 @@
         card.append(handle, name, time, start, reset, del);
         item.append(card);
 
-        if (selectedRunnerId === runner.id) {
-          item.append(createDetails(runner));
-        }
+        item.append(createDetails(runner));
 
         list.append(item);
       });
@@ -578,21 +581,21 @@
     function openDetails(id) {
       if (drag) return;
 
-      commitRunnerNames();
       selectedRunnerId = selectedRunnerId === id ? null : id;
-      render();
+      updateDetailsVisibility();
     }
 
     function createDetails(runner) {
       const details = document.createElement("section");
       details.className = "runner-details";
+      details.dataset.detailsFor = runner.id;
+      details.setAttribute("aria-hidden", selectedRunnerId === runner.id ? "false" : "true");
+      if (selectedRunnerId === runner.id) {
+        details.classList.add("open");
+      }
 
       const notesSection = document.createElement("div");
       notesSection.className = "detail-section";
-
-      const notesTitle = document.createElement("h2");
-      notesTitle.className = "section-title";
-      notesTitle.textContent = "Notes";
 
       const notesFields = document.createElement("div");
       notesFields.className = "field-group";
@@ -612,10 +615,18 @@
       });
 
       notesFields.append(notesEditor);
-      notesSection.append(notesTitle, notesFields);
+      notesSection.append(notesFields);
       details.append(notesSection);
 
       return details;
+    }
+
+    function updateDetailsVisibility() {
+      document.querySelectorAll(".runner-details").forEach((details) => {
+        const isOpen = details.dataset.detailsFor === selectedRunnerId;
+        details.classList.toggle("open", isOpen);
+        details.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      });
     }
 
     function autoSizeEditors() {
