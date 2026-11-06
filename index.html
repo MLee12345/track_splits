@@ -113,22 +113,23 @@
 
     .logo-hand {
       background: rgba(0, 0, 0, 0.82);
-      border-radius: 3px;
+      border-radius: 999px 999px 2px 2px;
       bottom: 50%;
-      left: 50%;
       position: absolute;
-      transform: translateX(-50%) rotate(var(--angle, 0deg));
+      transform: rotate(var(--angle, 0deg));
       transform-origin: 50% 100%;
     }
 
     .logo-hour {
-      height: 7px;
-      width: 4px;
+      height: 5.5px;
+      left: calc(50% - 1.75px);
+      width: 3.5px;
     }
 
     .logo-minute {
-      height: 9px;
-      width: 3px;
+      height: 6.75px;
+      left: calc(50% - 1.25px);
+      width: 2.5px;
     }
 
     .logo-face::after {
