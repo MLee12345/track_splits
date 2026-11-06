@@ -73,9 +73,7 @@
 
     .logo {
       align-items: center;
-      background: linear-gradient(135deg, var(--green), var(--cyan));
-      border-radius: 999px;
-      box-shadow: 0 5px 10px rgba(112, 199, 138, 0.26);
+      background: transparent;
       display: grid;
       flex: 0 0 auto;
       height: 48px;
@@ -85,30 +83,45 @@
     }
 
     .logo::before {
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: inherit;
+      background: rgba(238, 244, 244, 0.92);
+      border-radius: 6px 6px 4px 4px;
+      box-shadow: 0 -5px 0 -1px rgba(183, 195, 195, 0.88);
       content: "";
-      inset: 0;
+      height: 9px;
+      left: 50%;
       position: absolute;
+      top: 4px;
+      transform: translateX(-50%);
+      width: 18px;
+      z-index: 0;
+    }
+
+    .logo::after {
+      background: rgba(238, 244, 244, 0.85);
+      border-radius: 999px;
+      content: "";
+      height: 14px;
+      position: absolute;
+      right: 5px;
+      top: 13px;
+      transform: rotate(42deg);
+      width: 8px;
+      z-index: 1;
     }
 
     .logo-face {
-      border: 4px solid rgba(0, 0, 0, 0.82);
+      background: linear-gradient(145deg, #9ee8df, #72d6cd);
+      border: 3px solid rgba(143, 231, 218, 0.72);
       border-radius: 50%;
-      height: 25px;
+      box-shadow: inset 3px 2px 0 rgba(255, 255, 255, 0.18), inset -3px -3px 0 rgba(26, 74, 70, 0.12), 0 4px 10px rgba(112, 199, 138, 0.18);
+      height: 40px;
       position: relative;
-      width: 25px;
+      width: 40px;
+      z-index: 2;
     }
 
     .logo-face::before {
-      background: rgba(0, 0, 0, 0.82);
-      border-radius: 4px 4px 1px 1px;
-      content: "";
-      height: 6px;
-      left: 6px;
-      position: absolute;
-      top: -9px;
-      width: 5px;
+      content: none;
     }
 
     .logo-hand {
@@ -121,13 +134,13 @@
     }
 
     .logo-hour {
-      height: 5.5px;
+      height: 9px;
       left: calc(50% - 1.75px);
       width: 3.5px;
     }
 
     .logo-minute {
-      height: 6.75px;
+      height: 12px;
       left: calc(50% - 1.25px);
       width: 2.5px;
     }
@@ -428,8 +441,9 @@
     const addButton = document.getElementById("add-runner");
     const logoHour = document.getElementById("logo-hour");
     const logoMinute = document.getElementById("logo-minute");
+    const storageKey = "tracksplits.web.state.v1";
 
-    let runners = Array.from({ length: 4 }, (_, index) => makeRunner(`Runner ${index + 1}`));
+    let runners = loadStoredRunners();
     let selectedRunnerId = null;
     let drag = null;
     let lastTick = 0;
@@ -442,6 +456,61 @@
         startedAt: null,
         workout: { notes: "" }
       };
+    }
+
+    function defaultRunners() {
+      return Array.from({ length: 4 }, (_, index) => makeRunner(`Runner ${index + 1}`));
+    }
+
+    function loadStoredRunners() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+        if (!saved || !Array.isArray(saved.runners) || saved.runners.length === 0) {
+          return defaultRunners();
+        }
+
+        const nowEpoch = Date.now();
+        const nowPerformance = performance.now();
+
+        return saved.runners.map((runner, index) => {
+          const startedAtEpoch = Number.isFinite(runner.startedAtEpoch) ? runner.startedAtEpoch : null;
+          const elapsedSinceStart = startedAtEpoch === null ? 0 : Math.max(0, (nowEpoch - startedAtEpoch) / 1000);
+
+          return {
+            id: typeof runner.id === "string" ? runner.id : makeRunner("").id,
+            name: typeof runner.name === "string" && runner.name.trim() ? runner.name : `Runner ${index + 1}`,
+            elapsedBeforeStart: Number.isFinite(runner.elapsedBeforeStart) ? runner.elapsedBeforeStart : 0,
+            startedAt: startedAtEpoch === null ? null : nowPerformance - elapsedSinceStart * 1000,
+            workout: {
+              notes: typeof runner.workout?.notes === "string" ? runner.workout.notes : ""
+            }
+          };
+        });
+      } catch {
+        return defaultRunners();
+      }
+    }
+
+    function saveState() {
+      const nowEpoch = Date.now();
+      const nowPerformance = performance.now();
+      const saved = {
+        runners: runners.map((runner) => ({
+          id: runner.id,
+          name: runner.name,
+          elapsedBeforeStart: runner.elapsedBeforeStart,
+          startedAtEpoch: runner.startedAt === null ? null : nowEpoch - Math.max(0, nowPerformance - runner.startedAt),
+          workout: {
+            notes: runner.workout.notes
+          }
+        }))
+      };
+
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(saved));
+      } catch {
+        // Same-device persistence is best-effort; the app should still work if storage is blocked.
+      }
     }
 
     function elapsed(runner, now = performance.now()) {
@@ -474,6 +543,7 @@
         const trimmed = runner.name.trim();
         return { ...runner, name: trimmed || `Runner ${index + 1}` };
       });
+      saveState();
     }
 
     function render() {
@@ -511,6 +581,7 @@
           runner.name = name.value;
           card.setAttribute("aria-label", runner.name);
           autoSize(name);
+          saveState();
         });
         name.addEventListener("blur", () => {
           commitRunnerNames();
@@ -581,6 +652,7 @@
         runner.startedAt = now;
       }
 
+      saveState();
       render();
     }
 
@@ -593,6 +665,7 @@
         runner.startedAt = performance.now();
       }
 
+      saveState();
       updateTimes(performance.now());
     }
 
@@ -602,12 +675,14 @@
       if (selectedRunnerId === id) {
         selectedRunnerId = null;
       }
+      saveState();
       render();
     }
 
     function addRunner() {
       commitRunnerNames();
       runners.push(makeRunner(nextDefaultRunnerName()));
+      saveState();
       render();
     }
 
@@ -645,6 +720,7 @@
       notesEditor.addEventListener("input", () => {
         runner.workout.notes = notesEditor.value;
         autoSize(notesEditor);
+        saveState();
       });
 
       notesFields.append(notesEditor);
@@ -746,6 +822,7 @@
         runners.splice(targetIndex, 0, runner);
       }
 
+      saveState();
       drag = null;
       render();
     }
@@ -780,6 +857,7 @@
     }
 
     addButton.addEventListener("click", addRunner);
+    window.addEventListener("beforeunload", saveState);
 
     render();
     updateClockLogo();
