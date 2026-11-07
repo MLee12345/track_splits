@@ -493,7 +493,7 @@ private struct RunnerCard: View {
                 }) {
                     Image(systemName: "arrow.counterclockwise")
                         .font(.system(size: 17, weight: .bold))
-                        .frame(width: 50, height: 50)
+                        .frame(width: 46, height: 50)
                         .foregroundStyle(.white)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
